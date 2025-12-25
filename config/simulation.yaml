@@ -1,0 +1,16 @@
+simulation:
+  title: "ANEM 2025 Drone Show Simulator"
+  max_drones: 1000
+  initial_drones: 100
+  space:
+    x_range: [-200, 200]
+    y_range: [0, 150]
+    z_range: [-200, 200]
+  physics:
+    max_speed_m_s: 10.0
+    acceleration_m_s2: 2.0
+    collision_radius_m: 1.5
+    min_separation_m: 3.0
+  time:
+    fps_target: 60
+    time_scale: 1.0
