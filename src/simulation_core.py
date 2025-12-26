@@ -38,7 +38,7 @@ class SimulationCore(QOpenGLWidget):
         self.target_colors = np.ones((self.sim_config['simulation']['max_drones'], 3)) # Default White
 
     def initializeGL(self):
-        gl.glClearColor(*self.vis_config['visuals']['background_color'])
+        gl.glClearColor(0, 0, 0, 1) # DEEP BLACK - "beaucoup plus noir, profond"
         gl.glEnable(gl.GL_DEPTH_TEST)
         gl.glEnable(gl.GL_CULL_FACE)
         
@@ -144,23 +144,22 @@ class SimulationCore(QOpenGLWidget):
     def set_phase(self, phase_name):
         self.current_phase = phase_name
         self.phase_timer = 0.0
-        # State Machine: 
-        # 0: TRANSIT (Moving to target)
-        # 1: ARRIVED_WAIT (Short pause before effect)
-        # 2: BLACKOUT (Extinction)
-        # 3: FADE_IN (Allumage progressif)
-        # 4: LIGHT_SHOW (Jeu de lumière)
-        # 5: HOLD (Maintien + Respiration)
-        self.phase_state = 0 
         self.state_timer = 0.0
+        self.phase_state = 0 
         
         num_drones = self.sim_config['simulation']['max_drones']
         targets, colors = self.formations.get_phase(phase_name, num_drones)
         
-        # In TRANSIT, we update targets in manager
-        self.drone_manager.set_formation(targets, colors)
+        # --- SCENOGRAPHIC COLOR OVERRIDE IN TRANSIT ---
+        # For Phase 6 (Flag), starting colors must be neutral stars
+        if phase_name == "phase6_drapeau":
+             # We want to keep the appearance of starry night during transition
+             neutral_colors = np.tile(self.formations.colors["star_white"], (num_drones, 1))
+             self.drone_manager.set_formation(targets, neutral_colors)
+        else:
+             self.drone_manager.set_formation(targets, colors)
         
-        # Store final colors for the fade/show effects
+        # Store final colors for reveal
         self.target_colors = colors 
         
         self.update()
@@ -174,10 +173,10 @@ class SimulationCore(QOpenGLWidget):
             # --- STATE MACHINE LOGIC ---
             
             # Constants
-            TRANSIT_TIME = 10.0 # Time for descent (Phase 1) or travel
-            BLACKOUT_TIME = 1.0 # Arret/Extinction
-            FADE_IN_TIME = 2.0  # Allumage Progressif
-            SHOW_TIME = 3.0     # Jeu de lumiere
+            TRANSIT_TIME = 6.0 # Time for travel
+            BLACKOUT_TIME = 0.5 # Arret/Extinction
+            FADE_IN_TIME = 1.0  # Allumage Progressif
+            SHOW_TIME = 1.5     # Jeu de lumiere
             
             # Default Targets (Static)
             current_targets, current_colors = self.formations.get_phase(self.current_phase, self.sim_config['simulation']['max_drones'])
@@ -193,91 +192,141 @@ class SimulationCore(QOpenGLWidget):
                 
                 if self.phase_state == 0: # TRANSIT
                      num_drones = len(current_targets)
-                     third = num_drones // 3
+                     num_layers = 5 # Matching _phase_1_pluie
+                     drones_per_layer = num_drones // num_layers
                      
-                     fall_start_h = 40.0 # Height above target to start falling from
-                     move_duration = 4.0 # How long one wave takes to fall
+                     fall_start_h = 100.0 # Height above target
+                     wave_duration = 1.2 # How long one wave takes to fall
+                     delay_between_waves = 0.8
                      
-                     # Wave 1
-                     # Time window: 0 to 4
-                     # If time < 0, it's high. If time > 4, it's landed.
-                     
-                     def apply_wave(start_idx, end_idx, start_time):
+                     for l in range(num_layers):
+                         start_idx = l * drones_per_layer
+                         end_idx = (l+1) * drones_per_layer if l < num_layers-1 else num_drones
+                         
+                         start_time = l * delay_between_waves
                          local_t = self.state_timer - start_time
+                         
                          if local_t < 0:
-                             # Haven't started falling yet -> Stay High
                              current_targets[start_idx:end_idx, 1] += fall_start_h
-                         elif local_t < move_duration:
-                             # Falling
-                             progress = local_t / move_duration
-                             # Linear interp from fall_start_h to 0
+                         elif local_t < wave_duration:
+                             progress = local_t / wave_duration
                              offset = fall_start_h * (1.0 - progress)
                              current_targets[start_idx:end_idx, 1] += offset
                          else:
-                             # Landed (Offset 0)
-                             pass
-                     
-                     apply_wave(0, third, 0.0)
-                     apply_wave(third, 2*third, 4.0)
-                     apply_wave(2*third, num_drones, 8.0)
+                             pass # Landed
                 
             # --- STATE MACHINE COLOR OVERRIDES ---
             
-            if self.phase_state == 0: # TRANSIT (Mouvement / Chute)
-                # Drones move to current_targets
-                # Colors are Standard (White)
+            # Determine if this is a "Text" or "Narrative" phase for specific logic
+            is_text_phase = self.current_phase in ["phase2_anem", "phase3_jcn", "phase4_fes", "phase5_niger", "act3_typography"]
+            is_stealth_start = self.current_phase in ["act0_pre_opening"]
+            
+            # Sparkle / Starry Factor (Stars vivantes)
+            # Subtle pulsation with sky-blue tinting
+            sparkle_pulse = 0.9 + 0.2 * np.random.uniform(0, 1, len(current_colors))
+            star_sparkle = sparkle_pulse[:, np.newaxis]
+            
+            # Twinkling Sky Blue effect (Rare random blue sparks)
+            if self.is_playing:
+                blue_odds = np.random.rand(len(current_colors)) > 0.98
+                current_colors[blue_odds] = self.formations.colors["star_blue"]
+            
+            # Force dynamic refresh for specialized cinematic phases
+            if self.current_phase == "miroir_celeste":
+                targets, colors = self.formations.get_phase("miroir_celeste", self.drone_manager.num_drones, t=self.phase_timer)
+                self.target_positions = targets
+                self.target_colors = colors
+
+            if self.phase_state == 0: # TRANSIT (Mouvement)
+                if is_text_phase or is_stealth_start:
+                    # Fade to stealth (2% stars)
+                    fade_start, fade_end = 2.0, 4.0
+                    intensity = 1.0
+                    if self.state_timer < fade_start:
+                        intensity = 1.0
+                    elif self.state_timer < fade_end:
+                         progress = (self.state_timer - fade_start) / (fade_end - fade_start)
+                         intensity = 1.0 - (0.98 * progress) if is_text_phase else 1.0 - (0.95 * progress)
+                    else:
+                         intensity = 0.02 if is_text_phase else 0.05
+                    
+                    current_colors = current_colors * intensity
+                else:
+                    # Organic phases (Pluie, Map, etc.)
+                    # Keep them visible or subtle organic fade
+                    current_colors = current_colors * 0.8 # Slightly dimmed but visible
                 
-                # Update Transit Time to accommodate 3 waves
-                if self.state_timer > 13.0: # 3 waves * 4s + 1s buffer
+                # Update Transit Time
+                if self.state_timer > 6.0: 
                     self.phase_state = 1 # ARRIVED
                     self.state_timer = 0
             
-            elif self.phase_state == 1: # ARRIVED / PRE-BLACKOUT
-                 if self.state_timer > 0.5: # Short stabilization
-                     self.phase_state = 2 # BLACKOUT
-                     self.state_timer = 0
-            
-            elif self.phase_state == 2: # BLACKOUT (Extinction)
-                # Force Black
-                current_colors = np.zeros_like(current_colors)
+            elif self.phase_state == 1: # ARRIVED (PAUSE DANS LE NOIR / STEALTH)
+                if is_text_phase:
+                    current_colors = current_colors * 0.0 # Total target blackout for text
+                else:
+                    current_colors = current_colors * 0.2 # Organic shapes stay slightly active
+                
+                if self.state_timer > 0.5:
+                    self.phase_state = 2 # Pre-Ignition
+                    self.state_timer = 0
+                    
+            elif self.phase_state == 2: # BLACKOUT (Silence Visuel)
+                current_colors = current_colors * 0.0
                 if self.state_timer > BLACKOUT_TIME:
-                    self.phase_state = 3 # FADE IN
+                    self.phase_state = 3
                     self.state_timer = 0
-            
-            elif self.phase_state == 3: # FADE IN (Allumage progressif)
-                # Interpolate Black -> Base Color
-                progress = min(1.0, self.state_timer / FADE_IN_TIME)
-                current_colors = current_colors * progress
+                    
+            elif self.phase_state == 3: # FADE IN (RÉVÉLATION)
+                # Apply flag color logic for Phase 6 at the reveal
+                if self.current_phase == "phase6_drapeau":
+                     # During movement and arrived, it should stay Neutral/Stars
+                     # Here it reveals the flag colors
+                     pass # current_colors already has the flag colors from get_phase
+                
+                brightness = min(1.0, self.state_timer / FADE_IN_TIME)
+                current_colors = current_colors * brightness
                 if self.state_timer > FADE_IN_TIME:
-                    self.phase_state = 4 # LIGHT SHOW
+                    if self.current_phase in ["phase11_croix_agadez", "phase1_pluie", "phase7_carte", "act0_pre_opening", "act1_desert", "act6_identity", "act8_finale"]:
+                        self.phase_state = 5 # Skip flashy show, go straight to Hold
+                    else:
+                        self.phase_state = 4 # LIGHT SHOW / Sparkling Birth
                     self.state_timer = 0
-            
-            elif self.phase_state == 4: # LIGHT SHOW (Jeu de lumière court)
-                # Sparkle / Flash effect
-                freq = 20.0
-                sparkle = np.abs(np.sin(self.state_timer * freq + np.random.uniform(0, 1, len(current_colors))))
-                # Mix
+                    
+            elif self.phase_state == 4: # LIGHT SHOW (Sparkling Birth)
+                freq = 15.0
+                sparkle = 0.7 + 0.3 * np.abs(np.sin(self.state_timer * freq + np.random.uniform(0, 1, len(current_colors))))
                 current_colors = current_colors * sparkle[:, np.newaxis]
                 if self.state_timer > SHOW_TIME:
                     self.phase_state = 5 # HOLD
                     self.state_timer = 0
             
-            elif self.phase_state == 5: # HOLD (Maintien + Respiration)
-                # Permanent Breathing
-                breath = (np.sin(self.phase_timer * 1.5) + 1.0) * 0.5 * 0.4 + 0.6
-                current_colors = current_colors * breath
+            elif self.phase_state == 5: # HOLD (Contemplation)
+                # Respiration + Star Sparkle
+                if self.current_phase == "phase11_croix_agadez":
+                    breath = (np.sin(self.phase_timer * 0.8) + 1.0) * 0.5 * 0.3 + 0.7
+                else:
+                    breath = (np.sin(self.phase_timer * 1.5) + 1.0) * 0.5 * 0.2 + 0.8
+                
+                current_colors = current_colors * breath * star_sparkle
                 
                 # --- DYNAMIC FORMATIONS (HOLD STATE) ---
-                if self.current_phase == "phase6_drapeau":
+                if self.current_phase in ["phase6_drapeau", "act7_flag"]:
                     # Realistic Waving: Apply dynamic Z wave
-                    # Wave front moves over time
                     wave_speed = 3.0
                     wave_freq = 0.05
-                    amp = 8.0
+                    amp = 8.0 if self.current_phase == "phase6_drapeau" else 15.0 # Act 7 is more majestic
                     
                     for i in range(len(current_targets)):
                          x = current_targets[i, 0]
                          current_targets[i, 2] = amp * np.sin(x * wave_freq + self.phase_timer * wave_speed)
+                
+                if self.current_phase == "act1_desert":
+                    # Slow dune breathing
+                    amp = 4.0
+                    for i in range(len(current_targets)):
+                         x, z = current_targets[i, 0], current_targets[i, 2]
+                         current_targets[i, 1] += amp * np.sin(x*0.05 + self.phase_timer*0.5) * np.cos(z*0.05)
                 
             # Apply to Manager
             self.drone_manager.set_formation(current_targets, current_colors)
