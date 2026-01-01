@@ -1,4 +1,6 @@
 import numpy as np
+from PIL import Image
+import os
 
 class FormationLibrary:
     def __init__(self):
@@ -82,7 +84,8 @@ class FormationLibrary:
         Returns (positions, colors) for a given phase.
         """
         if phase_name == "phase1_pluie":
-            return self._phase_1_pluie(num_drones)
+            t = kwargs.get('t', 0.0)
+            return self._phase_1_pluie(num_drones, t)
         elif phase_name == "phase2_anem":
             return self._text_formation("ANEM", num_drones, self.colors["star_white"]) # Maintain White/Starry
         elif phase_name == "phase3_jcn":
@@ -105,7 +108,8 @@ class FormationLibrary:
         elif phase_name == "act0_pre_opening":
             return self._act_0_pre_opening(num_drones)
         elif phase_name == "act1_desert":
-            return self._act_1_desert(num_drones)
+            t = kwargs.get('t', 0.0)
+            return self._act_1_desert(num_drones, t)
         elif phase_name == "act2_sacred_rain":
             return self._act_2_sacred_rain(num_drones)
         elif phase_name == "act3_typography":
@@ -185,8 +189,8 @@ class FormationLibrary:
             return False
 
         # Use helper for solid filling
-        # Lower center Y to 60 for better framing
-        return self._fill_shape_uniformly(is_in_text, (-total_w/2, total_w/2, -char_h/2, char_h/2), num_drones, center=(0, 60, 0), z_depth=5.0)
+        # Transform text into a luminous sculpture with significant depth (10m)
+        return self._fill_shape_uniformly(is_in_text, (-total_w/2, total_w/2, -char_h/2, char_h/2), num_drones, center=(0, 60, 0), z_depth=10.0)
 
 
     def _shape_cube(self, num, size, color):
@@ -210,18 +214,15 @@ class FormationLibrary:
         cols = np.tile(color, (num, 1))
         return pos, cols
 
-    def _fill_shape_uniformly(self, inclusion_func, bounds, num_drones, center=(0, 70, 0), z_depth=1.0):
+    def _fill_shape_uniformly(self, inclusion_func, bounds, num_drones, center=(0, 70, 0), z_depth=8.0):
         """
         Generates a solid uniform grid of points filtered by inclusion_func.
         Every drone acts as a pixel in a dense photo.
+        Sculptural default: z_depth = 8.0 for visibility in oblique camera.
         """
         min_x, max_x, min_y, max_y = bounds
         
         # 1. Estimate grid resolution to get ~4x more points than drones for flexibility
-        area = (max_x - min_x) * (max_y - min_y)
-        # We assume about 30-50% of the bounding box is filled.
-        # N_total * fill_factor = num_drones * 10 
-        # N_total = (num_drones * 10) / fill_factor
         grid_points_target = num_drones * 20
         res = int(np.sqrt(grid_points_target))
         
@@ -236,22 +237,61 @@ class FormationLibrary:
         
         candidates = np.array(candidates)
         if len(candidates) < num_drones:
-            # Fallback to random if grid is too sparse (shouldn't happen with target * 20)
             return self._shape_sphere(num_drones, 20, [1,1,1]) # Emergency fallback
 
-        # 2. Uniformly sub-sample
-        # To avoid strictly repeating patterns, we can shuffle and pick
         indices = np.linspace(0, len(candidates)-1, num_drones).astype(int)
         sampled = candidates[indices]
         
         final_pos = np.zeros((num_drones, 3))
-        # Center the shape
-        final_pos[:, 0] = sampled[:, 0] + center[0]
-        final_pos[:, 1] = sampled[:, 1] + center[1]
+        jitter = 1.0 # Subtle spread to avoid grid-like look
+        final_pos[:, 0] = sampled[:, 0] + center[0] + np.random.uniform(-jitter, jitter, num_drones)
+        final_pos[:, 1] = sampled[:, 1] + center[1] + np.random.uniform(-jitter, jitter, num_drones)
         final_pos[:, 2] = np.random.uniform(-z_depth/2, z_depth/2, num_drones) + center[2]
         
         final_cols = np.tile(self.colors["blanc_pure"], (num_drones, 1))
         return final_pos, final_cols
+
+    def _sample_from_image(self, image_path, num_drones, target_width=160.0):
+        """Extracts shape and colors from an image file."""
+        if not os.path.exists(image_path):
+            print(f"Warning: Image {image_path} not found.")
+            return None, None
+
+        img = Image.open(image_path).convert("RGBA")
+        data = np.array(img)
+        
+        # Silhouette: find all non-transparent pixels (Alpha > 128)
+        # Note: We also exclude very white/background pixels if needed, 
+        # but here we rely on the alpha channel.
+        mask = data[:, :, 3] > 128
+        y_indices, x_indices = np.where(mask)
+        
+        if len(x_indices) == 0:
+            return None, None
+            
+        # Get coordinates and colors
+        coords = np.column_stack((x_indices, y_indices))
+        colors = data[y_indices, x_indices, :3] / 255.0
+        
+        # Sub-sample to num_drones
+        indices = np.linspace(0, len(coords)-1, num_drones).astype(int)
+        sampled_coords = coords[indices]
+        sampled_colors = colors[indices]
+        
+        # Center and scale
+        min_x, min_y = np.min(sampled_coords, axis=0)
+        max_x, max_y = np.max(sampled_coords, axis=0)
+        
+        width = max_x - min_x
+        height = max_y - min_y
+        scale = target_width / width
+        
+        pos = np.zeros((num_drones, 3))
+        # Flip Y because image coordinates start from top
+        pos[:, 0] = (sampled_coords[:, 0] - (min_x + max_x)/2) * scale
+        pos[:, 1] = -(sampled_coords[:, 1] - (min_y + max_y)/2) * scale
+        
+        return pos, sampled_colors
 
     def _act_0_pre_opening(self, num):
         # Sparse stars (Silence avant la naissance)
@@ -260,7 +300,7 @@ class FormationLibrary:
         cols = np.tile(self.colors["star_white"], (num, 1))
         return pos, cols
 
-    def _act_1_desert(self, num):
+    def _act_1_desert(self, num, t=0.0):
         # Desert Birth (Le Désert Vivant) - Horizontal Waves
         # Expanded to fill the entire 400x400 grid (plate carrelée)
         pos = np.zeros((num, 3))
@@ -270,8 +310,8 @@ class FormationLibrary:
         rows = int(np.sqrt(num))
         cols_n = num // rows
         
-        grid_width = 400.0
-        grid_length = 400.0
+        grid_width = 500.0
+        grid_length = 500.0
         
         dx = grid_width / (cols_n - 1)
         dz = grid_length / (rows - 1)
@@ -280,10 +320,10 @@ class FormationLibrary:
         for r in range(rows):
             for c in range(cols_n):
                 if idx >= num: break
-                x = -200.0 + c * dx
-                z = -200.0 + r * dz
-                # Base Y is ground level with breathing dunes
-                y = 2.0 + 4.0 * np.sin(x * 0.05) * np.cos(z * 0.05)
+                x = -250.0 + c * dx # Center on 0,0
+                z = -250.0 + r * dz
+                # Base Y is ground level with breathing dunes - increased relief and dynamic movement
+                y = 2.0 + 8.0 * np.sin(x * 0.04 + t * 0.4) * np.cos(z * 0.04 + t * 0.3)
                 pos[idx] = [x, y, z]
                 
                 # Bi-color mix (Gold/Orange)
@@ -304,32 +344,52 @@ class FormationLibrary:
             z = 45.0 * np.sin(x * 0.03) + 15.0 * np.cos(x * 0.07)
             perp_off = np.random.uniform(-width_base/2, width_base/2)
             y = 65.0 + 12.0 * np.sin(x * 0.015)
-            pos[i] = [x, y, z + perp_off]
+            # Give the river a sculptural depth (4m) and slight organic jitter
+            z_final = z + perp_off + np.random.uniform(-2.0, 2.0)
+            pos[i] = [x, y, z_final]
             if np.random.rand() > 0.8: cols[i] = self.colors["blanc_pure"]
         return pos, cols
         
-    def _phase_1_pluie(self, num):
-        # "Vagues du Niger" - Horizontal layers with central Sun
+    def _phase_1_pluie(self, num, t=0.0):
+        # Intelligent Rain (Pluie Sacrée - Ouverture Sensorielle)
+        # Structured descending blue points in regular curves
         pos = np.zeros((num, 3))
-        cols = np.zeros((num, 3))
-        num_layers = 5
-        drones_per_layer = num // num_layers
-        width, depth = 160.0, 80.0
-        center_y, layer_spacing = 60.0, 12.0
+        cols = np.tile(self.colors["star_blue"], (num, 1))
+        
+        # Grid parameters: Arc-based rain
+        num_arcs = 12
+        drones_per_arc = num // num_arcs
+        
+        spacing_x = 20.0
+        cycle_h = 140.0 # From 160m down to 20m
+        descent_speed = 12.0 # Slow atmospheric descent
+        
         idx = 0
-        for l in range(num_layers):
-            layer_y = center_y + (l - num_layers/2) * layer_spacing
-            for d in range(drones_per_layer):
+        for i in range(num_arcs):
+            # Each arc has a slight horizontal offset and curve
+            off_x = (i - num_arcs/2) * spacing_x
+            z_arc = 15.0 * np.sin(i * 0.5) # Curve depth
+            
+            for j in range(drones_per_arc):
                 if idx >= num: break
-                x = np.random.uniform(-width/2, width/2)
-                z = np.random.uniform(-depth/2, depth/2)
-                pos[idx] = [x, layer_y, z]
-                sun_radius = 15.0
-                if (x**2 + z**2) <= sun_radius**2:
-                    cols[idx] = self.colors["orange_niger"]
-                else:
+                
+                # Vertical distribution with wrap-around
+                # This creates the "infinite" rain effect
+                base_y = 160.0 - (j * (cycle_h / drones_per_arc))
+                y = 20.0 + (base_y - descent_speed * t) % cycle_h
+                
+                # Slight horizontal curve (S-shape arc)
+                x = off_x + 8.0 * np.sin(y * 0.05)
+                z = z_arc + 10.0 * np.cos(y * 0.05)
+                
+                pos[idx] = [x, y, z]
+                
+                # Occasional white "reflection/spark" (10%)
+                if (idx + int(t*2)) % 10 == 0:
                     cols[idx] = self.colors["blanc_pure"]
+                    
                 idx += 1
+                
         return pos, cols
 
     def _act_4_science(self, num):
@@ -347,14 +407,16 @@ class FormationLibrary:
         
         pos[:n_fib, 0] = r * np.cos(theta)
         pos[:n_fib, 1] = 80 + r * np.sin(theta) * 0.2 # Tilted spiral
-        pos[:n_fib, 2] = -10 + r * np.sin(theta)
+        # Give Fibonacci a 3D volume (8m depth)
+        pos[:n_fib, 2] = -10 + r * np.sin(theta) + np.random.uniform(-4.0, 4.0, n_fib)
         
         # Sine Wave part (Half drones)
         n_sine = num - n_fib
         x = np.linspace(-80, 80, n_sine)
         pos[n_fib:, 0] = x
         pos[n_fib:, 1] = 70 + 20 * np.sin(x * 0.1)
-        pos[n_fib:, 2] = 20 * np.cos(x * 0.1)
+        # Give Sine Wave a 3D volume (8m depth)
+        pos[n_fib:, 2] = 20 * np.cos(x * 0.1) + np.random.uniform(-4.0, 4.0, n_sine)
         
         return pos, cols
 
@@ -389,7 +451,7 @@ class FormationLibrary:
             
             return False
 
-        return self._fill_shape_uniformly(is_in_wildlife, (-80, 80, -40, 60), num, center=(0, 60, 0), z_depth=5.0)
+        return self._fill_shape_uniformly(is_in_wildlife, (-80, 80, -40, 60), num, center=(0, 60, 0), z_depth=12.0)
 
     def _act_7_flag(self, num):
         # Majestic Flag (Immense & Waving)
@@ -413,7 +475,7 @@ class FormationLibrary:
                 if idx >= num: break
                 x = c * dx - width/2
                 y = (rows_grid - 1 - r) * dy + start_y
-                pos[idx] = [x, y, 0]
+                pos[idx] = [x, y, np.random.uniform(-2.0, 2.0)]
                 
                 # Flag Colors
                 if y > start_y + (2*height/3):
@@ -491,7 +553,7 @@ class FormationLibrary:
                 if idx >= num: break
                 x = c * dx - width/2
                 y = (rows_grid - 1 - r) * dy + start_y
-                pos[idx] = [x, y, 0]
+                pos[idx] = [x, y, np.random.uniform(-2.0, 2.0)]
                 
                 # Flag Colors
                 if y > start_y + (2*height/3):
@@ -510,21 +572,24 @@ class FormationLibrary:
         return pos, cols
 
     def _phase_7_carte(self, num):
-        # Precise Niger Map - Pure Solid Surface Rendering
-        poly = np.array(self.niger_coords)
-        min_lon, min_lat = np.min(poly, axis=0)
-        max_lon, max_lat = np.max(poly, axis=0)
+        # Precise Niger Map - High-Fidelity Image-Based Rendering
+        image_path = "C:/Users/mtahiroudaouda/.gemini/antigravity/brain/1bd65539-7aec-43dc-9315-5bbdd944f9a6/uploaded_image_1766836483607.png"
         
-        target_width = 140.0
-        scale = target_width / (max_lon - min_lon)
+        pos, cols = self._sample_from_image(image_path, num, target_width=165.0)
         
-        # Define local bounds for the helper
-        l_min_x = (min_lon - (min_lon + max_lon)/2) * scale
-        l_max_x = (max_lon - (min_lon + max_lon)/2) * scale
-        l_min_y = (min_lat - (min_lat + max_lat)/2) * scale
-        l_max_y = (max_lat - (min_lat + max_lat)/2) * scale
+        if pos is None:
+            # Emergency manual fallback (Old logic)
+            return self._shape_sphere(num, 30, self.colors["orange_niger"])
+
+        # Offset to clear ground and center
+        center_y = 65.0
+        pos[:, 1] += center_y
         
-        return self._fill_shape_uniformly(is_in_niger, (l_min_x, l_max_x, l_min_y, l_max_y), num, center=(0, 55, 0))
+        # Apply 3D Volumetric Thickness (8m)
+        z_depth = 8.0
+        pos[:, 2] = np.random.uniform(-z_depth/2, z_depth/2, num)
+                
+        return pos, cols
 
     def _is_inside_polygon(self, x, y, poly):
         # Ray casting algorithm
@@ -597,7 +662,7 @@ class FormationLibrary:
             
             return False
 
-        pos, cols = self._fill_shape_uniformly(is_in_mosque, (-60, 60, 0, 110), num, center=(0, 20, 0), z_depth=5.0)
+        pos, cols = self._fill_shape_uniformly(is_in_mosque, (-60, 60, 0, 110), num, center=(0, 20, 0), z_depth=15.0)
         # Apply Miroir Céleste Colors (Gold/Orange mix)
         cols = np.tile(self.colors["soleil_or"], (num, 1))
         # Random mix with orange for a "living" building look
@@ -631,7 +696,7 @@ class FormationLibrary:
             
             return False
 
-        return self._fill_shape_uniformly(is_in_scene, (-40, 50, 0, 60), num, center=(0, 25, 0), z_depth=3.0)
+        return self._fill_shape_uniformly(is_in_scene, (-40, 50, 0, 60), num, center=(0, 25, 0), z_depth=10.0)
 
     def _phase_11_croix_agadez(self, num):
         # "Croix d'Agadez" - Solid Image Rendering
@@ -682,7 +747,7 @@ class FormationLibrary:
             return False
 
         # center_z = -30.0 Move it "un peu derriere"
-        return self._fill_shape_uniformly(is_in_croix, (-35*sc, 35*sc, -70*sc, 45*sc), num, center=(0, 75, -30.0))
+        return self._fill_shape_uniformly(is_in_croix, (-35*sc, 35*sc, -70*sc, 45*sc), num, center=(0, 75, -30.0), z_depth=10.0)
 
     def _miroir_celeste(self, num, t):
         # Miroir Céleste Show (45s total)
