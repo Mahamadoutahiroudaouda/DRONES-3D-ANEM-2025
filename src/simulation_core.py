@@ -162,6 +162,9 @@ class SimulationCore(QOpenGLWidget):
         # Store final colors for reveal
         self.target_colors = colors 
         
+        # --- DYNAMIC CAMERA PRESET ---
+        self.camera.set_phase_view(phase_name)
+        
         self.update()
 
     def update_simulation(self):
@@ -169,6 +172,10 @@ class SimulationCore(QOpenGLWidget):
             dt = 0.016 
             self.phase_timer += dt
             self.state_timer += dt
+            
+            # --- LIVING CINEMATIC CAMERA ---
+            # Handles smooth transitions, phase-presets, and micro-drifts
+            self.camera.update(dt)
             
             # --- STATE MACHINE LOGIC ---
             
@@ -232,10 +239,8 @@ class SimulationCore(QOpenGLWidget):
                 current_colors[blue_odds] = self.formations.colors["star_blue"]
             
             # Force dynamic refresh for specialized cinematic phases
-            if self.current_phase == "miroir_celeste":
-                targets, colors = self.formations.get_phase("miroir_celeste", self.drone_manager.num_drones, t=self.phase_timer)
-                self.target_positions = targets
-                self.target_colors = colors
+            if self.current_phase in ["miroir_celeste", "act1_desert", "phase1_pluie"]:
+                current_targets, current_colors = self.formations.get_phase(self.current_phase, self.drone_manager.num_drones, t=self.phase_timer)
 
             if self.phase_state == 0: # TRANSIT (Mouvement)
                 if is_text_phase or is_stealth_start:
