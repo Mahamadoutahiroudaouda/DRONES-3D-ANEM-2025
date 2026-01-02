@@ -1,7 +1,7 @@
 simulation:
   title: "ANEM 2025 Drone Show Simulator"
-  max_drones: 3000
-  initial_drones: 1500
+  max_drones: 2000
+  initial_drones: 2000
   space:
     x_range: [-200, 200]
     y_range: [0, 150]

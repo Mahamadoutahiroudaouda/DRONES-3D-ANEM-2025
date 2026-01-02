@@ -151,13 +151,7 @@ class SimulationCore(QOpenGLWidget):
         targets, colors = self.formations.get_phase(phase_name, num_drones)
         
         # --- SCENOGRAPHIC COLOR OVERRIDE IN TRANSIT ---
-        # For Phase 6 (Flag), starting colors must be neutral stars
-        if phase_name == "phase6_drapeau":
-             # We want to keep the appearance of starry night during transition
-             neutral_colors = np.tile(self.formations.colors["star_white"], (num_drones, 1))
-             self.drone_manager.set_formation(targets, neutral_colors)
-        else:
-             self.drone_manager.set_formation(targets, colors)
+        self.drone_manager.set_formation(targets, colors)
         
         # Store final colors for reveal
         self.target_colors = colors 
@@ -225,41 +219,40 @@ class SimulationCore(QOpenGLWidget):
             # --- STATE MACHINE COLOR OVERRIDES ---
             
             # Determine if this is a "Text" or "Narrative" phase for specific logic
-            is_text_phase = self.current_phase in ["phase2_anem", "phase3_jcn", "phase4_fes", "phase5_niger", "act3_typography"]
-            is_stealth_start = self.current_phase in ["act0_pre_opening"]
-            
-            # Sparkle / Starry Factor (Stars vivantes)
-            # Subtle pulsation with sky-blue tinting
-            sparkle_pulse = 0.9 + 0.2 * np.random.uniform(0, 1, len(current_colors))
-            star_sparkle = sparkle_pulse[:, np.newaxis]
-            
-            # Twinkling Sky Blue effect (Rare random blue sparks)
-            if self.is_playing:
-                blue_odds = np.random.rand(len(current_colors)) > 0.98
-                current_colors[blue_odds] = self.formations.colors["star_blue"]
+            TEXT_PHASES = ["phase2_anem", "phase3_jcn", "phase4_fes", "phase5_niger", "act3_typography"]
+            is_text_phase = self.current_phase in TEXT_PHASES
+            is_flag_phase = self.current_phase == "phase6_drapeau"
             
             # Force dynamic refresh for specialized cinematic phases
-            if self.current_phase in ["miroir_celeste", "act1_desert", "phase1_pluie"]:
+            if self.current_phase in ["miroir_celeste", "act1_desert", "phase1_pluie", "phase10_touareg", "act8_finale", "act9_eagle"]:
                 current_targets, current_colors = self.formations.get_phase(self.current_phase, self.drone_manager.num_drones, t=self.phase_timer)
 
+            # --- PHASE 6: FLAG LOGIC (Neutral Stars until Reveal) ---
+            if is_flag_phase and self.phase_state < 3: # Before Reveal
+                # Keep neutral star colors during movement and blackout
+                current_colors = np.tile(self.formations.colors["star_white"], (len(current_colors), 1))
+
+            # --- GENERAL SPARKLE (Subtle, for all except Flag Reveal) ---
+            # "Ciel étoilé vivant" - Subtle sparkle for elegance
+            if not (is_flag_phase and self.phase_state >= 3):
+                sparkle_intensity = 0.85 + 0.15 * np.random.uniform(0, 1, len(current_colors))
+                current_colors = current_colors * sparkle_intensity[:, np.newaxis]
+
             if self.phase_state == 0: # TRANSIT (Mouvement)
-                if is_text_phase or is_stealth_start:
-                    # Fade to stealth (2% stars)
+                if is_text_phase:
+                    # TEXT PHASES: Start Alive -> Fade to Stealth -> Invisible Arrival
+                    # 0-2s: Visible (Alive)
+                    # 2-4s: Fade Out
+                    # >4s: Stealth (Near Invisible)
                     fade_start, fade_end = 2.0, 4.0
-                    intensity = 1.0
                     if self.state_timer < fade_start:
                         intensity = 1.0
                     elif self.state_timer < fade_end:
-                         progress = (self.state_timer - fade_start) / (fade_end - fade_start)
-                         intensity = 1.0 - (0.98 * progress) if is_text_phase else 1.0 - (0.95 * progress)
+                        progress = (self.state_timer - fade_start) / (fade_end - fade_start)
+                        intensity = 1.0 - (0.95 * progress) # Fade to 0.05
                     else:
-                         intensity = 0.02 if is_text_phase else 0.05
-                    
+                        intensity = 0.05 # Stealth mode
                     current_colors = current_colors * intensity
-                else:
-                    # Organic phases (Pluie, Map, etc.)
-                    # Keep them visible or subtle organic fade
-                    current_colors = current_colors * 0.8 # Slightly dimmed but visible
                 
                 # Update Transit Time
                 if self.state_timer > 6.0: 
@@ -268,29 +261,25 @@ class SimulationCore(QOpenGLWidget):
             
             elif self.phase_state == 1: # ARRIVED (PAUSE DANS LE NOIR / STEALTH)
                 if is_text_phase:
-                    current_colors = current_colors * 0.0 # Total target blackout for text
-                else:
-                    current_colors = current_colors * 0.2 # Organic shapes stay slightly active
+                    current_colors = current_colors * 0.02 # Almost invisible
                 
                 if self.state_timer > 0.5:
                     self.phase_state = 2 # Pre-Ignition
                     self.state_timer = 0
                     
             elif self.phase_state == 2: # BLACKOUT (Silence Visuel)
-                current_colors = current_colors * 0.0
+                current_colors = current_colors * 0.0 # Total silence
                 if self.state_timer > BLACKOUT_TIME:
                     self.phase_state = 3
                     self.state_timer = 0
                     
             elif self.phase_state == 3: # FADE IN (RÉVÉLATION)
-                # Apply flag color logic for Phase 6 at the reveal
-                if self.current_phase == "phase6_drapeau":
-                     # During movement and arrived, it should stay Neutral/Stars
-                     # Here it reveals the flag colors
-                     pass # current_colors already has the flag colors from get_phase
+                # For Flag: Colors are already correct (passed the < 3 check)
+                # For Text: Fade in to solid letters
                 
                 brightness = min(1.0, self.state_timer / FADE_IN_TIME)
                 current_colors = current_colors * brightness
+                
                 if self.state_timer > FADE_IN_TIME:
                     if self.current_phase in ["phase11_croix_agadez", "phase1_pluie", "phase7_carte", "act0_pre_opening", "act1_desert", "act6_identity", "act8_finale"]:
                         self.phase_state = 5 # Skip flashy show, go straight to Hold
@@ -299,21 +288,13 @@ class SimulationCore(QOpenGLWidget):
                     self.state_timer = 0
                     
             elif self.phase_state == 4: # LIGHT SHOW (Sparkling Birth)
-                freq = 15.0
-                sparkle = 0.7 + 0.3 * np.abs(np.sin(self.state_timer * freq + np.random.uniform(0, 1, len(current_colors))))
-                current_colors = current_colors * sparkle[:, np.newaxis]
+                # No artificial sparkle override, respect original colors + subtle sparkle
                 if self.state_timer > SHOW_TIME:
                     self.phase_state = 5 # HOLD
                     self.state_timer = 0
             
             elif self.phase_state == 5: # HOLD (Contemplation)
-                # Respiration + Star Sparkle
-                if self.current_phase == "phase11_croix_agadez":
-                    breath = (np.sin(self.phase_timer * 0.8) + 1.0) * 0.5 * 0.3 + 0.7
-                else:
-                    breath = (np.sin(self.phase_timer * 1.5) + 1.0) * 0.5 * 0.2 + 0.8
-                
-                current_colors = current_colors * breath * star_sparkle
+                # No artificial breathing/sparkle override, respect original colors + subtle sparkle
                 
                 # --- DYNAMIC FORMATIONS (HOLD STATE) ---
                 if self.current_phase in ["phase6_drapeau", "act7_flag"]:

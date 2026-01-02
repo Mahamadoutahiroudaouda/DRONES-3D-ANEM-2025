@@ -78,11 +78,28 @@ class FormationLibrary:
             [3.5683,11.719],[3.5484,11.7438],[3.5606,11.7702],[3.5419,11.7781],[3.5228,11.7878],[3.5194,11.8003],[3.5147,11.8228],[3.4939,11.8433],[3.4814,11.8614],[3.4614,11.8653],
             [3.4411,11.8769],[3.4183,11.8786],[3.403,11.8775],[3.3796,11.8867],[3.3394,11.8852],[3.3219,11.8857],[3.3021,11.8941],[3.2831,11.9342],[3.2725,11.9626]
         ]
+        
+        # Cache for static formations
+        self._cache = {}
 
     def get_phase(self, phase_name, num_drones, **kwargs):
         """
         Returns (positions, colors) for a given phase.
         """
+        # Check cache for static phases (no 't' in kwargs)
+        if 't' not in kwargs:
+            cache_key = (phase_name, num_drones)
+            if cache_key in self._cache:
+                return self._cache[cache_key]
+        
+        result = self._generate_phase(phase_name, num_drones, **kwargs)
+        
+        if 't' not in kwargs:
+            self._cache[(phase_name, num_drones)] = result
+            
+        return result
+
+    def _generate_phase(self, phase_name, num_drones, **kwargs):
         if phase_name == "phase1_pluie":
             t = kwargs.get('t', 0.0)
             return self._phase_1_pluie(num_drones, t)
@@ -104,7 +121,8 @@ class FormationLibrary:
         elif phase_name == "phase9_agadez":
             return self._phase_9_agadez(num_drones)
         elif phase_name == "phase10_touareg":
-            return self._phase_10_touareg(num_drones)
+            t = kwargs.get('t', 0.0)
+            return self._phase_10_touareg(num_drones, t)
         elif phase_name == "act0_pre_opening":
             return self._act_0_pre_opening(num_drones)
         elif phase_name == "act1_desert":
@@ -126,7 +144,11 @@ class FormationLibrary:
             # Immense and majestic flag
             return self._act_7_flag(num_drones)
         elif phase_name == "act8_finale":
-            return self._act_8_finale(num_drones)
+            t = kwargs.get('t', 0.0)
+            return self._act_8_finale(num_drones, t)
+        elif phase_name == "act9_eagle":
+            t = kwargs.get('t', 0.0)
+            return self._act_9_eagle(num_drones, t)
         elif phase_name == "miroir_celeste":
             t = kwargs.get('t', 0.0)
             return self._miroir_celeste(num_drones, t)
@@ -493,31 +515,93 @@ class FormationLibrary:
                 idx += 1
         return pos, cols
 
-    def _act_8_finale(self, num):
-        # Unity Finale: Heart Sphere -> Star Explosion
-        # We return the "Heart" as the final stop
-        pos = np.zeros((num, 3))
-        cols = np.tile(self.colors["blanc_pure"], (num, 1))
+    def _act_8_finale(self, num, t=0.0):
+        # "LE CŒUR DE L'AFRIQUE" (Volumétrie Pulsante)
+        # A living, beating heart representing Unity.
         
-        # Fibonacci Sphere compressed into a Heart shape
-        indices = np.arange(num) + 0.5
-        phi = np.arccos(1 - 2*indices/num)
-        theta = np.pi * (1 + 5**0.5) * indices
+        # 1. Generate Base Shape (Cached)
+        if not hasattr(self, '_heart_cache'):
+             self._heart_cache = {}
         
-        r = 40.0
-        x = r * np.sin(phi) * np.cos(theta)
-        y = r * np.sin(phi) * np.sin(theta) + 70
-        z = r * np.cos(phi)
+        cache_key = num
+        if cache_key not in self._heart_cache:
+             # 3D Heart Formula
+             # (x^2 + 9/4 y^2 + z^2 - 1)^3 - x^2 z^3 - 9/80 y^2 z^3 = 0
+             # We use a rejection sampling or parametric approach for better distribution
+             
+             pos = []
+             # Parametric approximation for better point distribution
+             # Using a modified sphere mapping
+             count = 0
+             while count < num:
+                 # Random point in cube
+                 x = np.random.uniform(-1.5, 1.5)
+                 y = np.random.uniform(-1.5, 1.5)
+                 z = np.random.uniform(-1.5, 1.5)
+                 
+                 # Heart equation check
+                 a = x**2 + (9/4)*(y**2) + z**2 - 1
+                 if a**3 - (x**2)*(z**3) - (9/80)*(y**2)*(z**3) <= 0:
+                     pos.append([x, y, z])
+                     count += 1
+             
+             pos = np.array(pos)
+             # Scale up
+             pos *= 35.0 
+             # Center
+             pos[:, 1] += 70.0
+             
+             self._heart_cache[cache_key] = pos
         
-        # Heart formula deformation
-        # x' = x
-        # y' = y + 0.3 * abs(x)
-        # z' = z * 0.5
-        pos[:, 0] = x
-        pos[:, 1] = y + 0.3 * np.abs(x)
-        pos[:, 2] = z * 0.5
+        base_pos = self._heart_cache[cache_key]
         
-        return pos, cols
+        # 2. Animation: Heartbeat (Systole/Diastole)
+        # Double beat pattern: "Lub-Dub" ... pause ...
+        cycle = t % 1.5 # 1.5s per beat cycle (approx 80 bpm)
+        
+        # Beat curve
+        scale = 1.0
+        if cycle < 0.2: # First beat (Lub)
+            scale = 1.0 + 0.1 * np.sin(cycle * np.pi / 0.2)
+        elif 0.3 < cycle < 0.5: # Second beat (Dub)
+            scale = 1.0 + 0.05 * np.sin((cycle - 0.3) * np.pi / 0.2)
+            
+        # Apply Scale
+        # We scale relative to the center of the heart (0, 70, 0)
+        animated_pos = np.zeros_like(base_pos)
+        animated_pos[:, 0] = base_pos[:, 0] * scale
+        animated_pos[:, 1] = (base_pos[:, 1] - 70.0) * scale + 70.0
+        animated_pos[:, 2] = base_pos[:, 2] * scale
+        
+        # 3. Color Wave (Blood flow / Energy)
+        # Wave moves from bottom to top
+        cols = np.zeros((num, 3))
+        
+        # Define colors
+        col_gold = np.array(self.colors["soleil_or"])
+        col_red = np.array([1.0, 0.05, 0.1]) # Deep Red
+        col_core = np.array([1.0, 0.8, 0.8]) # White-ish center
+        
+        for i in range(num):
+            # Calculate distance from center for gradient
+            y_rel = animated_pos[i, 1] - 70.0
+            dist = np.sqrt(animated_pos[i, 0]**2 + y_rel**2 + animated_pos[i, 2]**2)
+            
+            # Pulse wave traveling outwards
+            wave_phase = (dist / 20.0) - (t * 2.0)
+            wave_val = (np.sin(wave_phase) + 1.0) / 2.0 # 0 to 1
+            
+            # Mix Red and Gold based on wave
+            # Core is brighter
+            base_mix = col_red * 0.7 + col_gold * 0.3
+            
+            # Highlight pulse
+            if wave_val > 0.8:
+                cols[i] = col_core # Bright pulse
+            else:
+                cols[i] = base_mix * (0.5 + 0.5 * wave_val) # Breathing brightness
+                
+        return animated_pos, cols
 
     def _phase_3_jcn(self, num):
         # "JCN2026" - Matrix Style, Unified White
@@ -609,36 +693,253 @@ class FormationLibrary:
         return inside
 
 
-    def _phase_8_finale(self, num):
-        # Spectacular Finale: 8-branch star 3D
-        pos = np.zeros((num, 3))
-        cols = np.tile(self.colors["blanc_pure"], (num, 1))
+    def _phase_8_finale(self, num, t=0.0):
+        # "LE CŒUR DE L'AFRIQUE" (Volumétrie Pulsante)
+        # A living, beating heart representing Unity.
         
-        # Fibonacci sphere for the core
-        core_num = num // 2
-        indices = np.arange(0, core_num, dtype=float) + 0.5
-        phi = np.arccos(1 - 2*indices/core_num)
-        theta = np.pi * (1 + 5**0.5) * indices
-        radius = 25.0
-        pos[:core_num, 0] = radius * np.cos(theta) * np.sin(phi)
-        pos[:core_num, 1] = radius * np.sin(theta) * np.sin(phi) + 70
-        pos[:core_num, 2] = radius * np.cos(phi)
+        # 1. Generate Base Shape (Cached)
+        if not hasattr(self, '_heart_cache'):
+             self._heart_cache = {}
         
-        # Rays
-        rays_num = num - core_num
-        rays = 8
-        drones_per_ray = rays_num // rays
-        for r in range(rays):
-            angle = (2 * np.pi / rays) * r
-            for d in range(drones_per_ray):
-                idx = core_num + r * drones_per_ray + d
-                dist = radius + d * 2.5
-                pos[idx] = [
-                    dist * np.cos(angle),
-                    dist * np.sin(angle) + 70,
-                    np.random.uniform(-3, 3)
-                ]
-        return pos, cols
+        cache_key = num
+        if cache_key not in self._heart_cache:
+             # 3D Heart Formula
+             # (x^2 + 9/4 y^2 + z^2 - 1)^3 - x^2 z^3 - 9/80 y^2 z^3 = 0
+             # We use a rejection sampling or parametric approach for better distribution
+             
+             pos = []
+             # Parametric approximation for better point distribution
+             # Using a modified sphere mapping
+             count = 0
+             while count < num:
+                 # Random point in cube
+                 x = np.random.uniform(-1.5, 1.5)
+                 y = np.random.uniform(-1.5, 1.5)
+                 z = np.random.uniform(-1.5, 1.5)
+                 
+                 # Heart equation check
+                 a = x**2 + (9/4)*(y**2) + z**2 - 1
+                 if a**3 - (x**2)*(z**3) - (9/80)*(y**2)*(z**3) <= 0:
+                     pos.append([x, y, z])
+                     count += 1
+             
+             pos = np.array(pos)
+             # Scale up
+             pos *= 35.0 
+             # Center
+             pos[:, 1] += 70.0
+             
+             self._heart_cache[cache_key] = pos
+        
+        base_pos = self._heart_cache[cache_key]
+        
+        # 2. Animation: Heartbeat (Systole/Diastole)
+        # Double beat pattern: "Lub-Dub" ... pause ...
+        cycle = t % 1.5 # 1.5s per beat cycle (approx 80 bpm)
+        
+        # Beat curve
+        scale = 1.0
+        if cycle < 0.2: # First beat (Lub)
+            scale = 1.0 + 0.1 * np.sin(cycle * np.pi / 0.2)
+        elif 0.3 < cycle < 0.5: # Second beat (Dub)
+            scale = 1.0 + 0.05 * np.sin((cycle - 0.3) * np.pi / 0.2)
+            
+        # Apply Scale
+        # We scale relative to the center of the heart (0, 70, 0)
+        animated_pos = np.zeros_like(base_pos)
+        animated_pos[:, 0] = base_pos[:, 0] * scale
+        animated_pos[:, 1] = (base_pos[:, 1] - 70.0) * scale + 70.0
+        animated_pos[:, 2] = base_pos[:, 2] * scale
+        
+        # 3. Color Wave (Blood flow / Energy)
+        # Wave moves from bottom to top
+        cols = np.zeros((num, 3))
+        
+        # Define colors
+        col_gold = np.array(self.colors["soleil_or"])
+        col_red = np.array([1.0, 0.05, 0.1]) # Deep Red
+        col_core = np.array([1.0, 0.8, 0.8]) # White-ish center
+        
+        for i in range(num):
+            # Calculate distance from center for gradient
+            y_rel = animated_pos[i, 1] - 70.0
+            dist = np.sqrt(animated_pos[i, 0]**2 + y_rel**2 + animated_pos[i, 2]**2)
+            
+            # Pulse wave traveling outwards
+            wave_phase = (dist / 20.0) - (t * 2.0)
+            wave_val = (np.sin(wave_phase) + 1.0) / 2.0 # 0 to 1
+            
+            # Mix Red and Gold based on wave
+            # Core is brighter
+            base_mix = col_red * 0.7 + col_gold * 0.3
+            
+            # Highlight pulse
+            if wave_val > 0.8:
+                cols[i] = col_core # Bright pulse
+            else:
+                cols[i] = base_mix * (0.5 + 0.5 * wave_val) # Breathing brightness
+                
+        return animated_pos, cols
+
+    def _act_9_eagle(self, num, t=0.0):
+        # "L'ENVOL DE L'AIGLE" (Morphing Fluide)
+        # Map of Niger -> Morph -> Giant Eagle Flying
+        
+        # 1. Generate Keyframes (Cached)
+        if not hasattr(self, '_eagle_cache'):
+             self._eagle_cache = {}
+        
+        cache_key = num
+        if cache_key not in self._eagle_cache:
+             # --- SHAPE A: NIGER MAP ---
+             # Use the polygon boundary
+             def is_in_map(lx, ly):
+                 # Map coords are roughly lat 11-23, lon 0-16
+                 # We map this to our scene coords
+                 # Center approx (8, 17)
+                 # Scale factor ~ 10
+                 
+                 # Transform scene (lx, ly) back to Geo (lon, lat)
+                 # lx = (lon - 8) * 10  => lon = lx/10 + 8
+                 # ly = (lat - 17) * 10 => lat = ly/10 + 17
+                 
+                 lon = lx / 12.0 + 9.0
+                 lat = ly / 12.0 + 17.0
+                 
+                 return self._is_inside_polygon(lon, lat, self.niger_coords)
+
+             pos_map, _ = self._fill_shape_uniformly(is_in_map, (-80, 80, -60, 60), num, center=(0, 60, 0), z_depth=5.0)
+             
+             # --- SHAPE B: EAGLE ---
+             def is_in_eagle(lx, ly):
+                 # Eagle facing right
+                 # Body: Ellipse
+                 if (lx/10)**2 + (ly/25)**2 <= 1.0: return True
+                 # Head: Circle at top
+                 if (lx/6)**2 + ((ly-25)/6)**2 <= 1.0: return True
+                 # Beak
+                 if 0 <= lx <= 10 and 22 <= ly <= 28 and (ly - 28) < -0.5*lx: return True
+                 # Wings (Spread)
+                 # Modeled as triangles/curves extending from body
+                 # Left Wing
+                 if -70 <= lx <= -5:
+                     # Upper edge curve
+                     uy = 15 + 20 * np.cos((lx+5)*0.05)
+                     # Lower edge
+                     dy = -10 + 10 * np.cos((lx+5)*0.05)
+                     if dy <= ly <= uy: return True
+                 # Right Wing
+                 if 5 <= lx <= 70:
+                     uy = 15 + 20 * np.cos((lx-5)*0.05)
+                     dy = -10 + 10 * np.cos((lx-5)*0.05)
+                     if dy <= ly <= uy: return True
+                 # Tail (Fan)
+                 if -15 <= lx <= 15 and -40 <= ly <= -20:
+                     if ly >= -40 + abs(lx): return True
+                     
+                 return False
+
+             pos_eagle, _ = self._fill_shape_uniformly(is_in_eagle, (-80, 80, -50, 50), num, center=(0, 70, 0), z_depth=8.0)
+             
+             # Sort both arrays by Y then X to minimize travel distance (simple heuristic)
+             # This makes the morph cleaner (particles don't cross over too much)
+             # We use a structured sort key
+             
+             # Sort Map
+             keys_map = pos_map[:, 1] * 1000 + pos_map[:, 0]
+             idx_map = np.argsort(keys_map)
+             pos_map = pos_map[idx_map]
+             
+             # Sort Eagle
+             keys_eagle = pos_eagle[:, 1] * 1000 + pos_eagle[:, 0]
+             idx_eagle = np.argsort(keys_eagle)
+             pos_eagle = pos_eagle[idx_eagle]
+             
+             self._eagle_cache[cache_key] = (pos_map, pos_eagle)
+        
+        pos_map, pos_eagle = self._eagle_cache[cache_key]
+        
+        # 2. Animation Logic
+        # Sequence:
+        # 0s - 3s: Map (Breathing)
+        # 3s - 8s: Morphing (Liquefaction)
+        # 8s+: Eagle Flying
+        
+        morph_start = 3.0
+        morph_dur = 5.0
+        morph_end = morph_start + morph_dur
+        
+        current_pos = np.zeros_like(pos_map)
+        cols = np.tile(self.colors["orange_niger"], (num, 1)) # Map Color
+        
+        if t < morph_start:
+            # MAP STATE
+            # Breathing
+            breath = 0.05 * np.sin(t * 2.0)
+            current_pos = pos_map * (1.0 + breath)
+            # Color: Orange Map
+            cols = np.tile(self.colors["orange_niger"], (num, 1))
+            
+        elif t < morph_end:
+            # MORPH STATE
+            prog = (t - morph_start) / morph_dur
+            # Ease in-out
+            k = prog * prog * (3 - 2 * prog)
+            
+            # Interpolate positions
+            current_pos = pos_map * (1-k) + pos_eagle * k
+            
+            # Interpolate Colors (Orange -> White/Gold Eagle)
+            col_map = np.array(self.colors["orange_niger"])
+            col_eagle = np.array(self.colors["blanc_pure"])
+            
+            # Dynamic mix
+            mix_cols = col_map * (1-k) + col_eagle * k
+            cols[:] = mix_cols
+            
+            # Add "Liquefaction" noise during transit
+            noise_amp = 5.0 * np.sin(prog * np.pi) # Max noise in middle
+            noise = np.random.uniform(-noise_amp, noise_amp, current_pos.shape)
+            current_pos += noise
+            
+        else:
+            # EAGLE STATE
+            fly_t = t - morph_end
+            
+            # Flapping Wings
+            # Wings are roughly where |x| > 10
+            # Flap freq
+            freq = 4.0
+            flap = np.sin(fly_t * freq)
+            
+            current_pos = pos_eagle.copy()
+            
+            for i in range(num):
+                x, y, z = current_pos[i]
+                lx = x # Local x relative to center 0
+                
+                if abs(lx) > 10: # Wing area
+                    # Flap amplitude increases with distance from body
+                    dist_factor = (abs(lx) - 10) / 60.0
+                    angle = 0.5 * flap * dist_factor
+                    
+                    # Rotate point around shoulder (approx +/- 10, 0)
+                    # Simple Z-rotation approximation for flapping
+                    # y' = y + ...
+                    current_pos[i, 1] += dist_factor * 20.0 * flap
+                    current_pos[i, 2] += dist_factor * 10.0 * np.cos(fly_t * freq) # Slight twisting
+            
+            # Global Hover
+            current_pos[:, 1] += 2.0 * np.sin(fly_t * 1.0)
+            
+            # Eagle Colors (White body, Gold tips)
+            cols = np.tile(self.colors["blanc_pure"], (num, 1))
+            # Gold tips for wings
+            for i in range(num):
+                if abs(current_pos[i, 0]) > 40:
+                    cols[i] = self.colors["soleil_or"]
+
+        return current_pos, cols
 
     def _phase_9_agadez(self, num):
         # "La Grande Mosquée d'Agadez" - Solid Image Rendering
@@ -670,33 +971,116 @@ class FormationLibrary:
         cols[orange_indices] = self.colors["orange_niger"]
         return pos, cols
 
-    def _phase_10_touareg(self, num):
-        # "Touareg avec son chameau" - Solid Image Rendering
-        # Narrative silhouette
+    def _phase_10_touareg(self, num, t=0.0):
+        # "Touareg avec son chameau" - Animated & Living
+        # Narrative silhouette with walking animation
         
+        # 1. Define the static shape WITH LEGS
         def is_in_scene(lx, ly):
-            # --- CAMEL ---
-            # Body
-            bx, by = lx - 15, ly - 30
-            if (bx/15)**2 + (by/10)**2 <= 1.0: return True
-            # Hump
-            hx, hy = lx - 15, ly - 42
-            if (hx/7)**2 + (hy/5)**2 <= 1.0: return True
-            # Neck & Head
-            nx, ny = lx - 2, ly - 35
-            if (lx < 0) and abs(ny - (-lx * 0.8)) < 4.0 and lx > -20: return True
+            # Coordinate system: lx increases to right.
+            # Camel Center ~ 15. Touareg Center ~ -25.
             
+            # --- CAMEL ---
+            # Body (Ellipse)
+            if ((lx - 15)/15)**2 + ((ly - 30)/10)**2 <= 1.0: return True
+            # Hump
+            if ((lx - 15)/7)**2 + ((ly - 42)/5)**2 <= 1.0: return True
+            # Head (Circle at -5, 50 relative to camel center? No, let's place it at x=0, y=50)
+            if ((lx - 0)/4)**2 + ((ly - 50)/4)**2 <= 1.0: return True 
+            # Neck (Connecting Body to Head)
+            # Simple check: between x=0 and x=10, y between 30 and 50
+            if 0 <= lx <= 10 and 30 <= ly <= 50:
+                 if abs(ly - (50 - (lx)*1.5)) < 3.5: return True
+
+            # Legs (Static definition for generation)
+            # Front Leg (at x=5)
+            if abs(lx - 5) < 3.0 and 0 <= ly <= 25: return True
+            # Back Leg (at x=25)
+            if abs(lx - 25) < 3.0 and 0 <= ly <= 25: return True
+
             # --- TOUAREG ---
-            # Standing next to camel
-            tx, ty = lx + 25, ly - 20
-            if (abs(tx) <= 6) and (0 <= ly <= 40): return True
+            # Body
+            if abs(lx + 25) < 6 and 15 <= ly <= 45: return True
             # Head/Turban
-            thx, thy = lx + 25, ly - 45
-            if thx**2 + thy**2 <= 25: return True
+            if ((lx + 25)/5)**2 + ((ly - 50)/6)**2 <= 1.0: return True
+            # Legs
+            if abs(lx + 25) < 5 and 0 <= ly <= 15: return True
             
             return False
 
-        return self._fill_shape_uniformly(is_in_scene, (-40, 50, 0, 60), num, center=(0, 25, 0), z_depth=10.0)
+        # 2. Generate Points (Cached to avoid jitter)
+        if not hasattr(self, '_touareg_cache'):
+             self._touareg_cache = {}
+        
+        cache_key = num
+        if cache_key not in self._touareg_cache:
+             # Generate base shape
+             pos, cols = self._fill_shape_uniformly(is_in_scene, (-40, 50, 0, 60), num, center=(0, 25, 0), z_depth=10.0)
+             
+             # Apply Colors
+             new_cols = np.zeros_like(cols)
+             for i in range(num):
+                 x = pos[i, 0]
+                 if x < -10: # Touareg side (Left)
+                     # Indigo / Blue Nuit for Touareg
+                     new_cols[i] = self.colors["bleu_nuit"] if np.random.rand() > 0.2 else self.colors["turquoise"]
+                 else: # Camel side (Right)
+                     # Gold / Orange for Camel
+                     new_cols[i] = self.colors["orange_niger"] if np.random.rand() > 0.4 else self.colors["soleil_or"]
+             
+             self._touareg_cache[cache_key] = (pos, new_cols)
+        
+        base_pos, base_cols = self._touareg_cache[cache_key]
+        
+        # 3. Animate (Deform)
+        animated_pos = base_pos.copy()
+        
+        # Walk Cycle Parameters
+        walk_speed = 3.0
+        cycle = t * walk_speed
+        
+        for i in range(num):
+            x, y, z = animated_pos[i]
+            
+            # Local coordinates (undo center shift for logic)
+            lx = x
+            ly = y - 25 
+            
+            # --- CAMEL ANIMATION ---
+            if lx > -10: 
+                # Head Bobbing (Head is approx lx < 5, ly > 45)
+                if lx < 5 and ly > 40:
+                    animated_pos[i, 1] += 1.0 * np.sin(cycle)
+                    animated_pos[i, 0] += 0.5 * np.cos(cycle)
+                
+                # Legs
+                # Front Leg (approx x=5)
+                if abs(lx - 5) < 4 and ly < 25:
+                    # Rotate around hip (5, 25)
+                    angle = 0.3 * np.sin(cycle)
+                    dy = ly - 25
+                    animated_pos[i, 0] += dy * np.sin(angle)
+                    
+                # Back Leg (approx x=25)
+                if abs(lx - 25) < 4 and ly < 25:
+                    # Rotate around hip (25, 25)
+                    angle = 0.3 * np.sin(cycle + np.pi) # Opposite phase
+                    dy = ly - 25
+                    animated_pos[i, 0] += dy * np.sin(angle)
+
+            # --- TOUAREG ANIMATION ---
+            else:
+                # Bobbing
+                animated_pos[i, 1] += 0.3 * np.sin(cycle + 0.5)
+                
+                # Legs (approx x=-25)
+                if ly < 15:
+                    # Simple walking swing
+                    angle = 0.25 * np.sin(cycle)
+                    dy = ly - 15
+                    animated_pos[i, 0] += dy * np.sin(angle)
+                    
+        return animated_pos, base_cols
 
     def _phase_11_croix_agadez(self, num):
         # "Croix d'Agadez" - Solid Image Rendering

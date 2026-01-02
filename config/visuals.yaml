@@ -1,14 +1,14 @@
 visuals:
-  background_color: [0.0, 0.05, 0.1, 1.0] # Dark blue night sky
+  background_color: [0.0, 0.0, 0.02, 1.0] # Deepest Black/Midnight Blue
   drone:
     size: 2.5
     detailed_model: false
     default_color: [1.0, 1.0, 1.0]
   lighting:
-    ambient_intensity: 0.2
+    ambient_intensity: 0.1
     diffuse_intensity: 0.8
     specular_intensity: 0.5
   bloom:
     enabled: true
-    threshold: 0.8
-    intensity: 1.2
+    threshold: 0.9
+    intensity: 1.5

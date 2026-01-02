@@ -51,6 +51,7 @@ class MainWindow(QMainWindow):
             ("Acte VI: Identité Sacrée", "act6_identity"),
             ("Acte VII: Drapeau Géant", "act7_flag"),
             ("Acte VIII: Finale Unity", "act8_finale"),
+            ("Acte IX: Eagle", "act9_eagle"),
         ]
 
         # 2. ORIGINAL PHASES (RECAP)
