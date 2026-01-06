@@ -23,11 +23,11 @@ class DroneManager:
         # Targets start at current positions (idle)
         self.targets[:] = self.positions[:]
 
-    def update(self, dt):
+    def update(self, dt, time_absolute=0.0):
         """
         Update all drone states for one frame.
         """
-        self.positions = self.physics.update_drones(self.positions, self.targets, dt)
+        self.positions = self.physics.update_drones(self.positions, self.targets, dt, time_absolute)
 
     def set_formation(self, target_coords, target_colors=None):
         """

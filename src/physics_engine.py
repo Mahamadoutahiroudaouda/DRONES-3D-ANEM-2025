@@ -8,55 +8,59 @@ class PhysicsEngine:
         self.collision_radius = self.config['collision_radius_m']
         self.min_separation = self.config['min_separation_m']
 
-    def update_drones(self, current_positions, target_positions, dt):
+    def update_drones(self, current_positions, target_positions, dt, time_absolute=0.0):
         """
         Updates drone positions based on targets and physics constraints.
-        
-        Args:
-            current_positions (np.array): Shape (N, 3)
-            target_positions (np.array): Shape (N, 3)
-            dt (float): Time delta in seconds
-        
-        Returns:
-            np.array: New positions
+        Includes "Bio-Swarm" vector fields and lightweight local avoidance.
         """
-        # Calculate vector to target
-        diff = target_positions - current_positions
-        dist = np.linalg.norm(diff, axis=1, keepdims=True)
+        # 1. Force towards Target (Elastic/Spring)
+        to_target = target_positions - current_positions
+        dist_target = np.linalg.norm(to_target, axis=1, keepdims=True)
+        
+        # Desired velocity is proportional to distance (P-Controller)
+        # Clamped to max_speed
+        desired_speed = np.clip(dist_target * 2.0, 0, self.max_speed)
         
         # Avoid division by zero
-        direction = np.divide(diff, dist, out=np.zeros_like(diff), where=dist!=0)
+        safe_dist = np.where(dist_target < 1e-4, 1.0, dist_target)
+        velocity_target = (to_target / safe_dist) * desired_speed
         
-        # Simple proportional control with speed limit
-        # In a real physics simulation, we would maintain velocity state.
-        # For a show simulator, we want them to stick to the plan but be smooth.
+        # 2. Turbulence Organique (Curl Noise Simulation)
+        # This adds the "living" feel without expensive fluid sims.
+        freq = 0.05
+        # Vectorized sin/cos noise field
+        noise_x = np.sin(current_positions[:, 1] * freq) * np.cos(current_positions[:, 2] * freq)
+        noise_y = np.sin(current_positions[:, 0] * freq) * np.cos(current_positions[:, 2] * freq)
+        noise_z = np.cos(current_positions[:, 0] * freq) * np.sin(current_positions[:, 1] * freq)
         
-        # Desired velocity
-        desired_velocity = direction * self.max_speed
+        turbulence = np.column_stack((noise_x, noise_y, noise_z)) * 2.0 # Strength
         
-        # Clamp velocity based on distance (arrival behavior)
-        # If distance is small, slow down
-        arrival_radius = 5.0 # meters
-        speed_factor = np.clip(dist / arrival_radius, 0.0, 1.0)
-        desired_velocity *= speed_factor
+        # 3. Micro-Avoidance / Grid Jitter
+        # Prevents "Robot Line" artifacting by giving each drone a unique micro-personality
+        # based on its index (modulo math cheaper than random usage per frame)
+        indices = np.arange(len(current_positions))
+        phase_jitter = indices * 0.1 + time_absolute
+        jitter = np.column_stack((
+            np.sin(phase_jitter), 
+            np.cos(phase_jitter * 0.7), 
+            np.sin(phase_jitter * 0.5)
+        )) * 0.5
 
-        # Update position
-        # New pos = Old pos + velocity * dt
-        # This is a kinematic update, simplified for stability in choreography
-        step = desired_velocity * dt
+        # 4. Integrate
+        # New Velocity = TargetSeeking + Turbulence + Jitter
+        total_velocity = velocity_target + turbulence + jitter
         
-        # Verify we don't overshoot
-        move_dist = np.linalg.norm(step, axis=1, keepdims=True)
-        overshoot_mask = move_dist > dist
+        # Limit global acceleration to prevent snapping
+        # (Simplified: Just clamp velocity magnitude to max_speed again just in case turbulence pushed it over)
+        speed_sq = np.sum(total_velocity**2, axis=1, keepdims=True)
+        over_speed_mask = (speed_sq > (self.max_speed**2)).flatten()
         
-        new_positions = current_positions + step
-        
-        # Snap to target if we would overshoot (perfect arrival)
-        # This prevents jitter at the target
-        # Using a loop for clarity in numpy masking replacement? No, numpy where.
-        # However, for N=1000 explicit logic is fine.
-        
-        # Ideally, we should implement collision avoidance here (repulsion forces).
-        # For Phase 1, we assume the choreography is collision-free.
+        if np.any(over_speed_mask):
+            current_speeds = np.sqrt(speed_sq[over_speed_mask])
+            scale = self.max_speed / current_speeds
+            total_velocity[over_speed_mask] *= scale
+
+        # Euler Integration
+        new_positions = current_positions + total_velocity * dt
         
         return new_positions

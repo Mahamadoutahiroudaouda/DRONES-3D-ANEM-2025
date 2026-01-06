@@ -4,6 +4,11 @@ import os
 
 class FormationLibrary:
     def __init__(self):
+        # === AUDIO REACTIVITY STATE ===
+        self.audio_bpm = 120.0  # Placeholder: Would come from audio analysis
+        self.audio_energy = 0.5  # Normalized [0, 1], from FFT analysis
+        self.kick_detected = False  # Per-frame kick detection
+        
         # Palette Officielle
         self.colors = {
             "orange_niger": [1.0, 0.5, 0.0],    # Golden Orange for Desert
@@ -85,7 +90,12 @@ class FormationLibrary:
     def get_phase(self, phase_name, num_drones, **kwargs):
         """
         Returns (positions, colors) for a given phase.
+        Supports audio_energy for music-reactive phases.
         """
+        # Extract audio_energy if provided (default 0.5)
+        audio_energy = kwargs.pop('audio_energy', 0.5)
+        self.audio_energy = audio_energy
+        
         # Check cache for static phases (no 't' in kwargs)
         if 't' not in kwargs:
             cache_key = (phase_name, num_drones)
@@ -102,15 +112,20 @@ class FormationLibrary:
     def _generate_phase(self, phase_name, num_drones, **kwargs):
         if phase_name == "phase1_pluie":
             t = kwargs.get('t', 0.0)
-            return self._phase_1_pluie(num_drones, t)
+            audio_energy = kwargs.get('audio_energy', self.audio_energy)
+            return self._phase_1_pluie(num_drones, t, audio_energy)
         elif phase_name == "phase2_anem":
-            return self._text_formation("ANEM", num_drones, self.colors["star_white"]) # Maintain White/Starry
+            t = kwargs.get('t', 0.0)
+            return self._text_formation("ANEM", num_drones, self.colors["star_white"], effect="rotate_ring", t=t) 
         elif phase_name == "phase3_jcn":
-            return self._text_formation("JCN2026", num_drones, self.colors["star_white"], scale_override=4.5)
+            t = kwargs.get('t', 0.0)
+            return self._text_formation("JCN2026", num_drones, self.colors["soleil_or"], scale_override=5.5, effect="wave", t=t)
         elif phase_name == "phase4_fes":
-            return self._text_formation("FES-MEKNES", num_drones, self.colors["star_white"], scale_override=3.2)
+            t = kwargs.get('t', 0.0)
+            return self._text_formation("FES-MEKNES", num_drones, self.colors["vert_niger"], scale_override=5.0, effect="split_move", t=t)
         elif phase_name == "phase5_niger":
-            return self._text_formation("NIGER", num_drones, self.colors["star_white"], scale_override=6.0)
+            t = kwargs.get('t', 0.0)
+            return self._text_formation("NIGER", num_drones, self.colors["orange_niger"], scale_override=8.5, effect="heartbeat", t=t)
         elif phase_name == "phase6_drapeau":
             # Original flag uses national colors
             return self._phase_6_drapeau(num_drones)
@@ -132,11 +147,23 @@ class FormationLibrary:
             return self._act_2_sacred_rain(num_drones)
         elif phase_name == "act3_typography":
             # Monolithic typography in pure starry white
-            return self._text_formation("NIGER", num_drones, self.colors["star_white"], scale_override=12.0)
+            return self._text_formation("NIGER", num_drones, self.colors["star_white"], scale_override=16.0)
+        elif phase_name == "phase_touareg_spiral":
+            t = kwargs.get('t', 0.0)
+            audio_energy = kwargs.get('audio_energy', self.audio_energy)
+            return self._phase_touareg_spiral(num_drones, t, audio_energy)
+        elif phase_name == "phase_22eme_edition":
+            t = kwargs.get('t', 0.0)
+            audio_energy = kwargs.get('audio_energy', self.audio_energy)
+            return self._phase_22eme_edition(num_drones, t, audio_energy)
         elif phase_name == "act4_science":
             return self._act_4_science(num_drones)
         elif phase_name == "act5_wildlife":
             return self._act_5_wildlife(num_drones)
+        elif phase_name == "act5_african_soul":
+            t = kwargs.get('t', 0.0)
+            audio_energy = kwargs.get('audio_energy', self.audio_energy)
+            return self._act_5_african_soul(num_drones, t, audio_energy)
         elif phase_name == "act6_identity":
             # Silver/Diamond styled Agadez Cross for Sacred Identity
             return self._phase_11_croix_agadez(num_drones)
@@ -151,75 +178,262 @@ class FormationLibrary:
             return self._act_9_eagle(num_drones, t)
         elif phase_name == "miroir_celeste":
             t = kwargs.get('t', 0.0)
-            return self._miroir_celeste(num_drones, t)
+            return self._act_finale_cosmic(num_drones, t)
         elif phase_name == "phase11_croix_agadez":
             return self._phase_11_croix_agadez(num_drones)
         else:
             # Default fallback: Sphere
             return self._shape_sphere(num_drones, 50.0, self.colors["turquoise"])
 
-    def _text_formation(self, text, num_drones, color, scale_override=None):
+    def _text_formation(self, text, num_drones, color, scale_override=None, effect=None, t=0.0):
         # Solid Text Rendering: Every character pixel is filled with drones.
-        # "Pensez peinture, pas dessin au trait."
         
-        font = {
-            'A': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1]],
-            'N': [[1,0,0,0,1],[1,1,0,0,1],[1,1,0,0,1],[1,0,1,0,1],[1,0,0,1,1],[1,0,0,1,1],[1,0,0,0,1]],
-            'E': [[1,1,1,1,1],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],
-            'M': [[1,0,0,0,1],[1,1,0,1,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1]],
-            'J': [[0,0,0,0,1],[0,0,0,0,1],[0,0,0,0,1],[0,0,0,0,1],[0,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
-            'C': [[0,1,1,1,1],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[0,1,1,1,1]],
-            '2': [[0,1,1,1,0],[1,0,0,0,1],[0,0,0,0,1],[0,0,1,1,0],[0,1,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],
-            '0': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
-            '6': [[0,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
-            'F': [[1,1,1,1,1],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0]],
-            'S': [[0,1,1,1,1],[1,0,0,0,0],[1,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,0,0,0,1],[1,1,1,1,0]],
-            '-': [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[1,1,1,1,1],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],
-            'K': [[1,0,0,1,0],[1,0,0,1,0],[1,0,1,0,0],[1,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,1,0]],
-            'I': [[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],
-            'G': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,0],[1,0,1,1,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
-            'R': [[1,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,0,1]],
-        }
+        scale = scale_override if scale_override else 9.0
         
-        scale = scale_override if scale_override else 7.0
-        char_w, char_h = 5 * scale, 7 * scale 
-        spacing = 6 * scale
+        # --- CACHING OPTIMIZATION ---
+        cache_key = f"TEXT_{text}_{num_drones}_{scale}"
+        pos = None
         
-        total_w = len(text) * spacing - (spacing - char_w)
-        
-        def is_in_text(lx, ly):
-            x_rel = lx + total_w/2
-            if x_rel < 0 or x_rel > total_w: return False
+        if cache_key in self._cache:
+            pos_cached, _ = self._cache[cache_key]
+            pos = pos_cached.copy()
             
-            char_idx = int(x_rel // spacing)
-            if char_idx >= len(text): return False
+        if pos is None:
+            # Generate static shape if not in cache
+            font = {
+                'A': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1]],
+                'N': [[1,0,0,0,1],[1,1,0,0,1],[1,1,0,0,1],[1,0,1,0,1],[1,0,0,1,1],[1,0,0,1,1],[1,0,0,0,1]],
+                'E': [[1,1,1,1,1],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],
+                'M': [[1,0,0,0,1],[1,1,0,1,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1]],
+                'J': [[0,0,0,0,1],[0,0,0,0,1],[0,0,0,0,1],[0,0,0,0,1],[0,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+                'C': [[0,1,1,1,1],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[0,1,1,1,1]],
+                '2': [[0,1,1,1,0],[1,0,0,0,1],[0,0,0,0,1],[0,0,1,1,0],[0,1,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],
+                '0': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+                '6': [[0,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+                'F': [[1,1,1,1,1],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0]],
+                'S': [[0,1,1,1,1],[1,0,0,0,0],[1,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,0,0,0,1],[1,1,1,1,0]],
+                '-': [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[1,1,1,1,1],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],
+                'K': [[1,0,0,1,0],[1,0,0,1,0],[1,0,1,0,0],[1,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,1,0]],
+                'I': [[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],
+                'G': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,0],[1,0,1,1,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+                'R': [[1,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,0,1]],
+            }
             
-            char = text[char_idx]
-            if char not in font: return False
+            char_w, char_h = 5 * scale, 7 * scale 
+            spacing = 6 * scale
             
-            cx = x_rel % spacing
-            if cx > char_w: return False 
+            total_w = len(text) * spacing - (spacing - char_w)
             
-            cy = char_h/2 - ly
-            if cy < 0 or cy > char_h: return False
-            
-            grid_c = int(cx // scale)
-            grid_r = int(cy // scale)
-            
-            if 0 <= grid_r < 7 and 0 <= grid_c < 5:
-                return font[char][grid_r][grid_c] == 1
-            return False
+            def is_in_text(lx, ly):
+                x_rel = lx + total_w/2
+                if x_rel < 0 or x_rel > total_w: return False
+                
+                char_idx = int(x_rel // spacing)
+                if char_idx >= len(text): return False
+                
+                char = text[char_idx]
+                if char not in font: return False
+                
+                cx = x_rel % spacing
+                if cx > char_w: return False 
+                
+                cy = char_h/2 - ly
+                if cy < 0 or cy > char_h: return False
+                
+                grid_c = int(cx // scale)
+                grid_r = int(cy // scale)
+                
+                if 0 <= grid_r < 7 and 0 <= grid_c < 5:
+                    return font[char][grid_r][grid_c] == 1
+                return False
 
-        # Use helper for solid filling
-        # Transform text into a luminous sculpture with significant depth (10m)
-        return self._fill_shape_uniformly(is_in_text, (-total_w/2, total_w/2, -char_h/2, char_h/2), num_drones, center=(0, 60, 0), z_depth=10.0)
+            # Use helper for solid filling
+            # Transform text into a luminous sculpture with significant depth (10m)
+            pos, cols = self._fill_shape_uniformly(is_in_text, (-total_w/2, total_w/2, -char_h/2, char_h/2), num_drones, center=(0, 60, 0), z_depth=10.0)
+            
+            # Save to cache
+            self._cache[cache_key] = (pos, cols)
+            pos = pos.copy()
+
+        # Override color base if needed (re-tile for every frame to ensure correct initial state before effects)
+        cols = np.tile(color, (num_drones, 1))
+
+        # --- DYNAMIC EFFECTS (LATEST GEN) ---
+        if effect == "rotate_ring":
+            # Slow rotation around Y
+            theta = t * 0.3
+            c, s = np.cos(theta), np.sin(theta)
+            x, z = pos[:, 0].copy(), pos[:, 2].copy()  # Relative to origin (0,0,0) ? No, center is (0,60,0)
+            
+            # Recenter for rotation
+            cx, cz = 0, 0 # The text is centered on x=0, z=0
+            
+            # Apply rotation
+            pos[:, 0] = x * c + z * s
+            pos[:, 2] = -x * s + z * c
+            
+            # Dynamic Pulse on Color
+            pulse = 0.5 + 0.5 * np.sin(t * 2.0)
+            cols[:, 0] = np.clip(cols[:, 0] + pulse * 0.2, 0, 1) # Add redness
+
+        elif effect == "wave":
+            # Sine wave flowing through text
+            wave_amp = 5.0
+            freq = 0.1
+            speed = 3.0
+            pos[:, 2] += wave_amp * np.sin(pos[:, 0] * freq + t * speed)
+            
+            # Color gradient shifting
+            shift = (np.sin(t) + 1) / 2
+            cols[:, 1] = shift # Shift green channel
+
+        elif effect == "split_move":
+            # FES - MEKNES split
+            # Move apart and back
+            offset = 15.0 * np.sin(t * 0.5) 
+            mask_left = pos[:, 0] < 0
+            pos[mask_left, 0] -= max(0, offset)
+            pos[~mask_left, 0] += max(0, offset)
+            
+            # Sparkle
+            if int(t * 10) % 2 == 0:
+                noise = np.random.uniform(-0.1, 0.1, (num_drones, 3))
+                cols = np.clip(cols + noise, 0, 1)
+
+        elif effect == "heartbeat":
+            # Violent scale pulses
+            beat = np.exp(-10 * (t % 1.0)) # Sharp spikes per second
+            if (t % 1.0) > 0.8: beat = 0 # rest
+            
+            scale = 1.0 + 0.05 * np.sin(t * 2.0) + 0.1 * beat
+            
+            # Scale from geometric center (0, 60, 0)
+            pos[:, 0] *= scale
+            pos[:, 1] = (pos[:, 1] - 60) * scale + 60
+            pos[:, 2] *= scale
+            
+            # Strobe effect on beat
+            if beat > 0.5:
+                cols[:] = [1, 1, 1] # Flash white
+
+        return pos, cols
 
 
-    def _shape_cube(self, num, size, color):
-        # Simple random cube for testing
-        pos = np.random.uniform(-size/2, size/2, (num, 3))
-        pos[:, 1] += 50 # Lift up
-        cols = np.tile(color, (num, 1))
+    def _act_finale_cosmic(self, num_drones, t):
+        """
+        The Ultimate Cosmic Finale: Spiral -> Implosion -> Eye -> Silence.
+        """
+        pos = np.zeros((num_drones, 3))
+        cols = np.ones((num_drones, 3))
+        
+        # Timeline
+        # 0-10s: Spiral Galaxy Formation
+        # 10-15s: Implosion to Singularity (Black Hole)
+        # 15-20s: Big Bang / Eye Opening
+        # 20s+: Drift to Silence
+        
+        if t < 10.0:
+            # GALAXY SPIRAL
+            progress = t / 10.0
+            # Fibonacci spiral but flat and rotating
+            indices = np.arange(0, num_drones, dtype=float)
+            golden_angle = np.pi * (3 - np.sqrt(5))
+            theta = indices * golden_angle + (t * 2.0) # Rotating
+            
+            # Radius expands
+            max_radius = 150.0 * np.sqrt(progress)
+            radius = np.sqrt(indices / num_drones) * max_radius
+            
+            x = radius * np.cos(theta)
+            z = radius * np.sin(theta)
+            
+            # Height variation (Galaxy bulge)
+            y_bulge = 100.0 + 30.0 * np.exp(-radius * 0.05)
+            y = y_bulge
+            
+            pos = np.column_stack((x, y, z))
+            
+            # Colors: Core Gold -> Edge Blue
+            dist_norm = radius / 150.0
+            cols[:, 0] = 1.0 - dist_norm # Red
+            cols[:, 1] = 0.8 - dist_norm * 0.5 # Green
+            cols[:, 2] = dist_norm + 0.2 # Blue
+            
+        elif t < 14.0:
+            # IMPLOSION
+            # Interpolate from Galaxy to pure point at (0, 150, 0)
+            progress = (t - 10.0) / 4.0
+            # Ease in cubic
+            progress = progress * progress * progress
+            
+            # Recompute spiral state at t=10
+            indices = np.arange(0, num_drones, dtype=float)
+            golden_angle = np.pi * (3 - np.sqrt(5))
+            theta = indices * golden_angle + (20.0)
+            radius = np.sqrt(indices / num_drones) * 150.0
+            x = radius * np.cos(theta)
+            z = radius * np.sin(theta)
+            y = 100.0 + 30.0 * np.exp(-radius * 0.05)
+            start_pos = np.column_stack((x, y, z))
+            target_pos = np.array([0, 120, 0])
+            
+            pos = start_pos * (1.0 - progress) + target_pos * progress
+            
+            # Colors turn to pure white energy
+            cols[:] = [1.0, 1.0, 1.0]
+
+        elif t < 20.0:
+            # THE COSMIC EYE / HOLLOW SPHERE
+            progress = (t - 14.0) / 6.0
+            # Rapid expansion to sphere
+            expand_radius = 60.0 * (1.0 - np.exp(-progress * 5.0))
+            
+            # Sphere positions
+            indices = np.arange(0, num_drones, dtype=float) + 0.5
+            phi = np.arccos(1 - 2*indices/num_drones)
+            theta = np.pi * (1 + 5**0.5) * indices
+            
+            sx = np.cos(theta) * np.sin(phi)
+            sy = np.sin(theta) * np.sin(phi)
+            sz = np.cos(phi)
+            
+            # Flatten front to look like an pupil (Irish)
+            # z > 0 is front
+            
+            pos[:, 0] = sx * expand_radius
+            pos[:, 1] = sy * expand_radius + 120.0
+            pos[:, 2] = sz * expand_radius
+            
+            # Eye Colors
+            # Center (Pupil) -> Black/Void
+            # Iris -> Blue/Gold
+            # Sclera -> White
+            
+            # Determine angle from front vector (0,0,1)
+            # dot product with (0,0,1) is basically sz
+            
+            # Pupil: sz > 0.9
+            # Iris: 0.6 < sz < 0.9
+            # White: sz < 0.6
+            
+            is_pupil = sz > 0.85
+            is_iris = (sz > 0.6) & (sz <= 0.85)
+            
+            cols[~is_pupil & ~is_iris] = [0.1, 0.1, 0.1] # Fading out back
+            cols[is_iris] = [0.0, 0.8, 1.0] # Blue/Cyan Iris
+            cols[is_pupil] = [0.0, 0.0, 0.0] # BLACK PUPIL (Negative Space)
+            
+            # Add rotation
+            rot_speed = t * 0.5
+            # Rotate around Y ...
+            
+        else:
+             # SILENCE / DRIFT AWAY
+             # Just float upwards and fade
+             pos, _ = self._shape_sphere(num_drones, 60.0, [0,0,0])
+             pos[:, 1] = 120.0 + (t - 20.0) * 5.0 # Float up
+             cols[:] = [0,0,0] # Invisible
+
         return pos, cols
 
     def _shape_sphere(self, num, radius, color):
@@ -323,35 +537,69 @@ class FormationLibrary:
         return pos, cols
 
     def _act_1_desert(self, num, t=0.0):
-        # Desert Birth (Le Désert Vivant) - Horizontal Waves
-        # Expanded to fill the entire 400x400 grid (plate carrelée)
+        # Desert Birth (Le Désert Vivant) - Advanced "Respirant" Dunes
+        # Audio-reactive modulation placeholders (bass impacts height, mid impacts ripples)
+        # In a real live system, these would come from FFT analysis.
+        bass_energy = 0.5 + 0.3 * np.sin(t * 3.0) # Fake bass
+        
+        # 1. Grille de base (Optimisé)
+        grid_side = int(np.sqrt(num))
+        # Expand grid slightly to ensure full coverage
+        x = np.linspace(-250, 250, grid_side)
+        z = np.linspace(-250, 250, grid_side)
+        xv, zv = np.meshgrid(x, z)
+        
+        # Aplatir pour avoir (N, 3)
         pos = np.zeros((num, 3))
+        flat_x = xv.flatten()
+        flat_z = zv.flatten()
+        
+        # Handle count mismatch (grid square vs num)
+        count = min(len(flat_x), num)
+        
+        pos[:count, 0] = flat_x[:count]
+        pos[:count, 2] = flat_z[:count]
+        
+        # 2. Sculpture des Dunes (Multi-Layer Noise simulé par Sin/Cos composites)
+        # Layer 1 : Grandes Dunes (Lent, Respirant)
+        # Layer 2 : Rides de sable (Rapide, Vif)
+        
+        amp_bass = 1.0 + bass_energy * 1.5 
+        
+        freq_dune = 0.025
+        freq_ripple = 0.15
+        
+        # Main waving dunes
+        y_dunes = 15.0 * np.sin(pos[:count, 0] * freq_dune + t * 0.4) * np.cos(pos[:count, 2] * freq_dune + t * 0.2)
+        
+        # Fast ripples (wind effect)
+        y_ripples = 4.0 * np.sin(pos[:count, 0] * freq_ripple + pos[:count, 2] * freq_ripple + t * 2.0)
+        
+        # Application avec modulation audio
+        pos[:count, 1] = 10.0 + (y_dunes * amp_bass) + y_ripples
+
+        # 3. Mapping Motif Sahélien (Croix d'Agadez / Losanges Géométriques)
         cols = np.tile(self.colors["soleil_or"], (num, 1))
         
-        # Grid dimensions to cover -200 to 200
-        rows = int(np.sqrt(num))
-        cols_n = num // rows
+        # Motif : Bandes Diagonales (Zébrures Touareg)
+        # Arithmétique modulaire sur les coordonnées world
+        # |x + z| % spacing < width
+        # Use full length mask initialized to False
+        pattern_mask = np.zeros(num, dtype=bool)
+        pattern_mask[:count] = (np.abs(pos[:count, 0] + pos[:count, 2]) % 60.0) < 20.0
         
-        grid_width = 500.0
-        grid_length = 500.0
+        # Motif : Centres de "diamants" (Sommets locaux) detecté par hauteur
+        peaks_mask = np.zeros(num, dtype=bool)
+        peaks_mask[:count] = pos[:count, 1] > (10.0 + 10.0 * amp_bass) # Sommets des dunes
         
-        dx = grid_width / (cols_n - 1)
-        dz = grid_length / (rows - 1)
+        # Application Couleurs
+        # Base: Soleil Or
+        # Pattern: Orange Niger (Sable profond)
+        # Peaks: Blanc Pur (Éclat Solaire / Reflet)
         
-        idx = 0
-        for r in range(rows):
-            for c in range(cols_n):
-                if idx >= num: break
-                x = -250.0 + c * dx # Center on 0,0
-                z = -250.0 + r * dz
-                # Base Y is ground level with breathing dunes - increased relief and dynamic movement
-                y = 2.0 + 8.0 * np.sin(x * 0.04 + t * 0.4) * np.cos(z * 0.04 + t * 0.3)
-                pos[idx] = [x, y, z]
-                
-                # Bi-color mix (Gold/Orange)
-                if np.random.rand() > 0.5:
-                    cols[idx] = self.colors["orange_niger"]
-                idx += 1
+        cols[pattern_mask] = self.colors["orange_niger"] 
+        cols[peaks_mask] = self.colors["blanc_pure"]     
+        
         return pos, cols
 
     def _act_2_sacred_rain(self, num):
@@ -372,11 +620,11 @@ class FormationLibrary:
             if np.random.rand() > 0.8: cols[i] = self.colors["blanc_pure"]
         return pos, cols
         
-    def _phase_1_pluie(self, num, t=0.0):
-        # Intelligent Rain (Pluie Sacrée - Ouverture Sensorielle)
-        # Structured descending blue points in regular curves
+    def _phase_1_pluie(self, num, t=0.0, audio_energy=0.5):
+        # Intelligent Rain (Pluie Sacrée - Ouverture Sensorielle) - ADVANCED
+        # Individual trajectory perturbations, height-based colors, audio reactivity
         pos = np.zeros((num, 3))
-        cols = np.tile(self.colors["star_blue"], (num, 1))
+        cols = np.zeros((num, 3))
         
         # Grid parameters: Arc-based rain
         num_arcs = 12
@@ -384,7 +632,7 @@ class FormationLibrary:
         
         spacing_x = 20.0
         cycle_h = 140.0 # From 160m down to 20m
-        descent_speed = 12.0 # Slow atmospheric descent
+        descent_speed = 12.0 * (0.8 + 0.4 * audio_energy) # Rhythmic modulation via audio energy
         
         idx = 0
         for i in range(num_arcs):
@@ -395,20 +643,62 @@ class FormationLibrary:
             for j in range(drones_per_arc):
                 if idx >= num: break
                 
-                # Vertical distribution with wrap-around
-                # This creates the "infinite" rain effect
+                # === Vertical Distribution (Infinite Fall) ===
                 base_y = 160.0 - (j * (cycle_h / drones_per_arc))
                 y = 20.0 + (base_y - descent_speed * t) % cycle_h
                 
+                # === Individual Trajectory Perturbations (Organic Variation) ===
+                # Each drone has unique noise based on its index
+                drone_phase = idx * 0.17 + t * 0.5
+                
+                # Micro-oscillation on X/Z (Sideways wind effect)
+                oscillation_x = 3.0 * np.sin(drone_phase) * np.cos(y * 0.02)
+                oscillation_z = 2.5 * np.cos(drone_phase * 1.3) * np.sin(y * 0.02)
+                
+                # Variable vertical speed per drone
+                speed_variation = 0.8 + 0.4 * np.sin(idx * 0.01 + t * 0.2)
+                y_varied = 20.0 + (base_y - descent_speed * speed_variation * t) % cycle_h
+                
                 # Slight horizontal curve (S-shape arc)
-                x = off_x + 8.0 * np.sin(y * 0.05)
-                z = z_arc + 10.0 * np.cos(y * 0.05)
+                x = off_x + 8.0 * np.sin(y_varied * 0.05) + oscillation_x
+                z = z_arc + 10.0 * np.cos(y_varied * 0.05) + oscillation_z
                 
-                pos[idx] = [x, y, z]
+                pos[idx] = [x, y_varied, z]
                 
-                # Occasional white "reflection/spark" (10%)
+                # === Height-Based Color Gradient (Atmospheric Effect) ===
+                # Top (160m): Cold Blue Night
+                # Mid (80m): Transition Cyan
+                # Bottom (20m): Hot White/Orange (Impact luminosity)
+                
+                y_normalized = (y_varied - 20.0) / 140.0  # 0.0 (bottom) to 1.0 (top)
+                
+                if y_normalized > 0.7:  # Upper atmosphere (cold)
+                    # Blend star_blue to turquoise
+                    t_blend = (y_normalized - 0.7) / 0.3
+                    cols[idx] = (1 - t_blend) * np.array(self.colors["turquoise"]) + t_blend * np.array(self.colors["star_blue"])
+                elif y_normalized > 0.3:  # Mid-atmosphere (transition)
+                    # Turquoise to white
+                    t_blend = (y_normalized - 0.3) / 0.4
+                    cols[idx] = (1 - t_blend) * np.array(self.colors["blanc_pure"]) + t_blend * np.array(self.colors["turquoise"])
+                else:  # Near impact (hot luminosity)
+                    # White to orange glow (splash zone)
+                    t_blend = y_normalized / 0.3
+                    impact_color = np.array([1.0, 0.6, 0.2])  # Warm orange-white
+                    cols[idx] = (1 - t_blend) * impact_color + t_blend * np.array(self.colors["blanc_pure"])
+                
+                # === Splash Glow Effect (Near Ground) ===
+                # Enhance brightness at impact zone (Y < 30m) for bloom effect
+                if y_varied < 30.0:
+                    splash_intensity = 1.0 - (y_varied / 30.0)  # 1.0 at ground, 0.0 at 30m
+                    # Brighten color (artificial glow)
+                    cols[idx] = np.clip(cols[idx] * (1.0 + 0.5 * splash_intensity), 0, 1)
+                
+                # === Flash Effect (Random "Sparkle") ===
+                # 10% of drones sparkle, synchronized with audio kicks
                 if (idx + int(t*2)) % 10 == 0:
-                    cols[idx] = self.colors["blanc_pure"]
+                    flash_strength = 0.5 + 0.5 * audio_energy
+                    cols[idx] = cols[idx] * (1.0 + flash_strength)  # Brighten
+                    cols[idx] = np.clip(cols[idx], 0, 1)  # Clamp to valid range
                     
                 idx += 1
                 
@@ -1133,6 +1423,236 @@ class FormationLibrary:
         # center_z = -30.0 Move it "un peu derriere"
         return self._fill_shape_uniformly(is_in_croix, (-35*sc, 35*sc, -70*sc, 45*sc), num, center=(0, 75, -30.0), z_depth=10.0)
 
+    def _phase_touareg_spiral(self, num, t=0.0, audio_energy=0.5):
+        """
+        Spirale Touareg Sacrale: Géométrie traditionnelle sahélienne.
+        Morphe graduellement vers 22EMEEDITION après 3 secondes.
+        Couleurs: Doré→Vert→Bleu (gradient sahélien).
+        """
+        
+        # === PARAMETERS ===
+        spiral_radius_outer = 60.0
+        spiral_radius_inner = 10.0
+        spiral_height = 80.0  # Z dimension for 3D spiral
+        spiral_turns = 3.0    # Nombre de rotations
+        
+        # === ANIMATION ===
+        # Phase 0-3s: Spiral full (entry)
+        # Phase 3-5s: Morphing vers 22EMEEDITION (dissolve)
+        if t < 3.0:
+            morph_progress = 0.0  # No morphing yet
+        elif t < 5.0:
+            morph_progress = (t - 3.0) / 2.0  # Morph over 2 seconds
+        else:
+            morph_progress = 1.0  # Fully morphed (shouldn't see this)
+        
+        # === VOXEL GENERATION ===
+        pos = np.zeros((num, 3))
+        cols = np.zeros((num, 3))
+        
+        voxel_count = 0
+        voxels = []
+        voxel_colors = []
+        
+        # Generate spiral pattern
+        angle_step = 2.0 * np.pi / (num // 4)  # Distribute drones around spiral
+        
+        for i in range(num):
+            angle = (i / (num / (spiral_turns * 2.0 * np.pi))) + t * 0.5  # Rotating spiral
+            
+            # Spiral radius (from inner to outer)
+            radius = spiral_radius_inner + (spiral_radius_outer - spiral_radius_inner) * (angle / (spiral_turns * 2.0 * np.pi))
+            radius = np.clip(radius, spiral_radius_inner, spiral_radius_outer)
+            
+            # Position on spiral
+            x = radius * np.cos(angle)
+            z = radius * np.sin(angle)
+            y = 50.0 + (angle / (spiral_turns * 2.0 * np.pi)) * spiral_height
+            
+            # Oscillation for organic motion
+            oscillation = 3.0 * np.sin(angle * 2.0 + t) * np.cos(t * 0.8)
+            x += oscillation * np.cos(angle)
+            z += oscillation * np.sin(angle)
+            
+            voxels.append([x, y, z])
+            
+            # Color gradient: Doré (outer) → Vert (mid) → Bleu (inner)
+            radius_norm = (radius - spiral_radius_inner) / (spiral_radius_outer - spiral_radius_inner)
+            
+            if radius_norm > 0.66:
+                # Outer: Doré
+                t_blend = (radius_norm - 0.66) / 0.34
+                col = (1 - t_blend) * np.array([1.0, 0.84, 0.0]) + t_blend * np.array([1.0, 0.7, 0.0])
+            elif radius_norm > 0.33:
+                # Mid: Vert Sahara
+                t_blend = (radius_norm - 0.33) / 0.33
+                col = (1 - t_blend) * np.array(self.colors["vert_niger"]) + t_blend * np.array([1.0, 0.7, 0.0])
+            else:
+                # Inner: Bleu Nuit
+                t_blend = radius_norm / 0.33
+                col = (1 - t_blend) * np.array(self.colors["bleu_nuit"]) + t_blend * np.array(self.colors["vert_niger"])
+            
+            voxel_colors.append(col)
+        
+        voxels = np.array(voxels)
+        voxel_colors = np.array(voxel_colors)
+        
+        # === MORPHING TRANSITION ===
+        if morph_progress > 0:
+            # Get target 22EMEEDITION positions
+            target_pos, target_cols = self._phase_22eme_edition(num, t, audio_energy)
+            
+            # Ease-in morphing
+            ease = morph_progress * morph_progress * (3.0 - 2.0 * morph_progress)
+            
+            pos = (1.0 - ease) * voxels + ease * target_pos
+            cols = (1.0 - ease) * voxel_colors + ease * target_cols
+        else:
+            pos = voxels
+            cols = voxel_colors
+        
+        # === PULSATION ON AUDIO ENERGY ===
+        pulse = 0.9 + 0.1 * np.sin(t * (2.0 + audio_energy * 3.0))
+        cols = cols * pulse
+        
+        return pos, np.clip(cols, 0, 1)
+
+
+    def _phase_22eme_edition(self, num, t=0.0, audio_energy=0.5):
+        """
+        Advanced 3D Typography: "22EMEEDITION"
+        - Chiffres "22" avec pulsation et halo doré
+        - Lettres "EMEEDITION" avec gradient vert/blanc et micro-ondulations
+        - Audio-réactivité : pulsations sur basses (kick), ondulations sur aigus
+        """
+        
+        # === PART 1: "22" (Golden, Pulsing) ===
+        # Each digit is a 5x7 grid voxelized
+        digit_font = {
+            '2': [[0,1,1,1,0],[1,0,0,0,1],[0,0,1,1,0],[0,1,0,0,0],[1,1,1,1,1]],
+            '0': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+        }
+        
+        # === PART 2: "EMEEDITION" (Letters, Gradient) ===
+        letter_font = {
+            'E': [[1,1,1,1,1],[1,0,0,0,0],[1,1,1,0,0],[1,0,0,0,0],[1,1,1,1,1]],
+            'M': [[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1]],
+            'D': [[1,1,1,0,0],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,1,0],[1,1,1,0,0]],
+            'I': [[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],
+            'T': [[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],
+            'N': [[1,0,0,0,1],[1,1,0,0,1],[1,0,1,0,1],[1,0,0,1,1],[1,0,0,0,1]],
+        }
+        
+        # Combined text: "22EMEEDITION"
+        text = "22EMEEDITION"
+        
+        # Grid generation
+        char_width = 8  # voxels wide (5 + spacing) - ENLARGED from 6
+        char_height = 9  # ENLARGED from 7
+        total_width = len(text) * char_width
+        
+        # Allocate positions and colors
+        pos = np.zeros((num, 3))
+        cols = np.zeros((num, 3))
+        
+        # Generate voxel grid for each character
+        voxels = []
+        voxel_colors = []
+        char_idx_list = []  # Track which character each voxel belongs to
+        
+        for char_pos, char in enumerate(text):
+            # Get font grid
+            if char in digit_font:
+                grid = digit_font[char]
+                is_digit = True
+            elif char in letter_font:
+                grid = letter_font[char]
+                is_digit = False
+            else:
+                continue
+            
+            # Fill grid with voxels
+            base_x = char_pos * char_width - total_width / 2
+            
+            for row, line in enumerate(grid):
+                for col, pixel in enumerate(line):
+                    if pixel == 1:
+                        vx = base_x + col
+                        vy = 70 - row  # Y centered at 70m
+                        vz = 0
+                        voxels.append([vx, vy, vz])
+                        voxel_colors.append((char_pos, is_digit))
+                        char_idx_list.append(char_pos)
+        
+        # === ANIMATION LOGIC ===
+        # Sample voxels uniformly across the 1000 drones
+        voxels = np.array(voxels) if voxels else np.zeros((1, 3))
+        voxel_colors = np.array(voxel_colors) if voxel_colors else np.array([(0, True)])
+        
+        if len(voxels) < num:
+            # Repeat/pad if not enough voxels
+            indices = np.linspace(0, len(voxels)-1, num).astype(int)
+            voxels = voxels[indices]
+            voxel_colors = voxel_colors[indices]
+        else:
+            # Sample uniformly
+            indices = np.linspace(0, len(voxels)-1, num).astype(int)
+            voxels = voxels[indices]
+            voxel_colors = voxel_colors[indices]
+        
+        pos = voxels.copy()
+        
+        # === DIGIT ANIMATION (Pulsation + Glow) ===
+        for i in range(num):
+            char_pos, is_digit = voxel_colors[i]
+            
+            if is_digit:
+                # DIGITS: Pulsation on beat (kick from audio_energy)
+                pulse = 0.5 + 0.5 * np.sin(t * (2 + 4*audio_energy))  # Faster on high energy
+                scale = 0.9 + 0.15 * pulse
+                
+                # Apply scale around character center
+                char_center_x = char_pos * char_width - total_width/2 + char_width/2
+                pos[i, 0] = char_center_x + (pos[i, 0] - char_center_x) * scale
+                pos[i, 1] = 70 + (pos[i, 1] - 70) * scale
+                
+                # Color: Golden halo
+                base_col = np.array([1.0, 0.84, 0.0])  # Soleil Or
+                # Glow: Brighten on pulse
+                cols[i] = base_col * (0.7 + 0.3 * pulse)
+                
+            else:
+                # LETTERS: Micro-oscillations + gradient color
+                
+                # Micro-oscillation: Wave through letters based on X position
+                wave_x = pos[i, 0] * 0.05
+                oscillation_y = 2.0 * np.sin(wave_x + t * 2.0)
+                oscillation_z = 1.5 * np.cos(wave_x + t * 2.0)
+                
+                pos[i, 1] += oscillation_y
+                pos[i, 2] += oscillation_z
+                
+                # Color gradient: Doré (top) → Vert/Blanc (bottom)
+                y_norm = (pos[i, 1] - 60) / 20  # Normalize within character height
+                y_norm = np.clip(y_norm, 0, 1)
+                
+                if y_norm > 0.5:
+                    # Top half: Orange transition
+                    t_blend = (y_norm - 0.5) / 0.5
+                    cols[i] = (1 - t_blend) * np.array([1.0, 0.7, 0.0]) + t_blend * np.array([1.0, 0.84, 0.0])
+                else:
+                    # Bottom half: Vert to Blanc
+                    t_blend = y_norm / 0.5
+                    cols[i] = (1 - t_blend) * np.array(self.colors["vert_niger"]) + t_blend * np.array(self.colors["blanc_pure"])
+        
+        # === ENTRY ANIMATION (Zoom in from beginning) ===
+        # First 1 second: zoom from center
+        if t < 1.0:
+            entry_scale = t  # 0 → 1 over 1 second
+            pos = pos * entry_scale
+        
+        return pos, cols
+
     def _miroir_celeste(self, num, t):
         # Miroir Céleste Show (45s total)
         pos = np.zeros((num, 3))
@@ -1192,3 +1712,101 @@ class FormationLibrary:
                 p[i, 0] += np.random.uniform(-50, 50) * prog
                 c[i] = np.array(self.colors["star_white"]) * (1-prog)
             return p, c
+
+    def _act_5_african_soul(self, num_drones, t, audio_energy):
+        """
+        ACT 5: L'âme africaine - Africa Map with Niger highlighted in red.
+        
+        Formation phases:
+        0-3s: Reveal Africa outline (white) with puzzle effect
+        3-6s: Highlight Niger in red at center
+        6-9s: Zoom on Niger with pulsation based on audio
+        9+: Hold formation with dynamic brightness
+        """
+        # Pre-cached positions and colors for performance
+        # Generate once and reuse
+        if not hasattr(self, '_act5_cache'):
+            from africa_map_generator import AfricaMapGenerator
+            generator = AfricaMapGenerator(width=400, height=400, scale=0.8)
+            base_pos_tmp, base_colors_tmp = generator.extract_drone_coordinates(num_drones)
+            self._act5_cache = (base_pos_tmp, base_colors_tmp)
+        
+        base_pos, base_colors = self._act5_cache
+        
+        # Ensure float32 for color operations
+        base_pos = base_pos.astype(np.float32)
+        base_colors = base_colors.astype(np.float32)
+        
+        # Time progression within phase
+        phase_t = t % 12.0  # 12 second cycle
+        
+        if phase_t < 3.0:  # === REVEAL (0-3s) ===
+            # Start with full map visible, gradually brighten
+            progress = phase_t / 3.0
+            
+            positions = base_pos.copy()
+            colors = base_colors.copy()
+            
+            # Gradually brighten from dim to full brightness
+            brightness = 0.3 + 0.7 * progress
+            colors = colors * brightness
+            
+        elif phase_t < 6.0:  # === NIGER HIGHLIGHT (3-6s) ===
+            # Emphasize Niger in red, dim rest
+            progress = (phase_t - 3.0) / 3.0
+            
+            positions = base_pos.copy()
+            colors = base_colors.copy()
+            
+            # Identify Niger drones (red)
+            niger_mask = np.all(colors > np.array([0.8, 0, 0]), axis=1)
+            
+            # Brighten Niger
+            colors[niger_mask] = np.array([1, 0, 0], dtype=np.float32)
+            # Dim Africa outline
+            colors[~niger_mask] = colors[~niger_mask] * (0.5 + 0.5 * progress)
+            
+        elif phase_t < 9.0:  # === ZOOM ON NIGER (6-9s) ===
+            # Zoom transformation: center on Niger
+            progress = (phase_t - 6.0) / 3.0
+            zoom_factor = 1.0 + progress * 1.5  # Zoom up to 2.5x
+            
+            positions = base_pos.copy()
+            colors = base_colors.copy()
+            
+            # Niger center (approximate)
+            niger_center = np.array([0, 50, 0], dtype=np.float32)
+            
+            # Zoom: move drones toward Niger center
+            vectors = niger_center - positions
+            positions = positions + vectors * (1 - 1/zoom_factor)
+            
+            # Audio-reactive pulsation (beat based)
+            pulsation = 0.8 + 0.2 * np.sin(audio_energy * np.pi) * np.sin(t * 3.0)
+            colors = colors * pulsation
+            
+        else:  # === HOLD (9+s) ===
+            positions = base_pos.copy()
+            colors = base_colors.copy()
+            
+            # Audio-reactive brightness on Niger
+            niger_mask = np.all(base_colors > np.array([0.8, 0, 0]), axis=1)
+            
+            # Pulsate red drones with audio energy
+            brightness = 0.7 + 0.3 * audio_energy
+            colors[niger_mask] = np.array([1, 0, 0], dtype=np.float32) * brightness
+            colors[~niger_mask] = colors[~niger_mask] * (0.6 + 0.4 * audio_energy)
+        
+        # Ensure valid array shape and dtype
+        positions = positions.astype(np.float32)
+        colors = colors.astype(np.float32)
+        
+        if len(positions) < num_drones:
+            padding = num_drones - len(positions)
+            positions = np.vstack([positions, np.zeros((padding, 3), dtype=np.float32)])
+            colors = np.vstack([colors, np.zeros((padding, 3), dtype=np.float32)])
+        elif len(positions) > num_drones:
+            positions = positions[:num_drones]
+            colors = colors[:num_drones]
+        
+        return positions, colors

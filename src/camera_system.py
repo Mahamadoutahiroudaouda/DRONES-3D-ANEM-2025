@@ -7,22 +7,25 @@ class CameraSystem:
         # --- NARRATIVE ANCHORS CONFIGURATION ---
         self.presets = {
             # Ground Intent: Human/Crane perspective (8-15m)
-            "ground": {"dist": 180.0, "yaw": 12.0, "pitch": -8.0, "target_y": 50.0, "intent": "human"},
-            "desert": {"dist": 350.0, "yaw": 15.0, "pitch": 12.0, "target_y": 2.0, "intent": "plongee"},
+            "ground": {"dist": 200.0, "yaw": 12.0, "pitch": -10.0, "target_y": 55.0, "intent": "human"},
+            "desert": {"dist": 300.0, "yaw": 15.0, "pitch": 10.0, "target_y": 2.0, "intent": "plongee"},
             
             # Interaction Intent: Relationship/Flow perspective (30-50m)
-            "interaction": {"dist": 240.0, "yaw": 18.0, "pitch": -10.0, "target_y": 60.0, "intent": "observer"},
-            "intimate": {"dist": 190.0, "yaw": 10.0, "pitch": -9.0, "target_y": 45.0, "intent": "observer"},
+            "interaction": {"dist": 220.0, "yaw": 18.0, "pitch": -12.0, "target_y": 65.0, "intent": "observer"},
+            "intimate": {"dist": 170.0, "yaw": 10.0, "pitch": -11.0, "target_y": 50.0, "intent": "observer"},
             
             # Drones Intent: Coverage/Monumental (50-70m)
-            "monument": {"dist": 230.0, "yaw": 12.0, "pitch": -12.0, "target_y": 70.0, "intent": "monumental"},
-            "text": {"dist": 260.0, "yaw": 18.0, "pitch": -11.0, "target_y": 75.0, "intent": "monumental"},
-            "heritage": {"dist": 210.0, "yaw": 20.0, "pitch": -12.0, "target_y": 80.0, "intent": "monumental"},
-            "science": {"dist": 240.0, "yaw": 18.0, "pitch": -11.0, "target_y": 70.0, "intent": "monumental"},
+            "monument": {"dist": 200.0, "yaw": 12.0, "pitch": -14.0, "target_y": 75.0, "intent": "monumental"},
+            "text": {"dist": 240.0, "yaw": 18.0, "pitch": -13.0, "target_y": 80.0, "intent": "monumental"},
+            "heritage": {"dist": 190.0, "yaw": 20.0, "pitch": -14.0, "target_y": 85.0, "intent": "monumental"},
+            "science": {"dist": 220.0, "yaw": 18.0, "pitch": -13.0, "target_y": 75.0, "intent": "monumental"},
             
             # Global Intent: Vision System (70-120m)
-            "flag": {"dist": 380.0, "yaw": 20.0, "pitch": -7.0, "target_y": 85.0, "intent": "vision"},
-            "wide": {"dist": 400.0, "yaw": 20.0, "pitch": -6.0, "target_y": 90.0, "intent": "vision"},
+            "flag": {"dist": 350.0, "yaw": 20.0, "pitch": -8.0, "target_y": 90.0, "intent": "vision"},
+            "wide": {"dist": 360.0, "yaw": 20.0, "pitch": -7.0, "target_y": 95.0, "intent": "vision"},
+            
+            # Africa Map - direct overhead view (drone view)
+            "africa_map": {"dist": 150.0, "yaw": 0.0, "pitch": -89.0, "target_y": 50.0, "intent": "vision"},
         }
 
         # Mapping phases to presets
@@ -34,11 +37,13 @@ class CameraSystem:
             "act3_typography": "text",
             "act4_science": "science",
             "act5_wildlife": "interaction",
+            "act5_african_soul": "africa_map",  # Aerial view of Africa
             "act6_identity": "heritage",
             "act7_flag": "flag",
             "act8_finale": "wide",
             "phase9_agadez": "monument",
             "phase10_touareg": "intimate",
+            "phase_touareg_spiral": "monument",  # NEW: Spiral from above
             "miroir_celeste": "monument",
             "phase11_croix_agadez": "heritage",
             "phase2_anem": "text",
@@ -47,6 +52,7 @@ class CameraSystem:
             "phase5_niger": "text",
             "phase6_drapeau": "flag",
             "phase7_carte": "desert", # Use 'desert' preset settings which is 'plongee' intent
+            "phase_22eme_edition": "text",
         }
 
         # New preset for Phase 1
@@ -97,9 +103,67 @@ class CameraSystem:
         # If we come from a 'vision' (global) or high altitude view, we slow down the transition
         # to create a "Sacred Descent" feel.
         if self.prev_intent == "vision" and self.current_intent in ["human", "observer"]:
-            self.lerp_speed = 0.15 # 3x slower for the return to earth
+            self.lerp_speed = 0.25 # Slower for the return to earth
         else:
-            self.lerp_speed = 0.5 # Normal cinematic speed
+            self.lerp_speed = 0.8 # Faster normal transitions for responsiveness
+
+    def update_smart_cinematic(self, positions, dt, mode="auto"):
+        """
+        AI Camera Pilot: Analyzes scene geometry to choose best angles dynamically.
+        Priority: Peak Following -> Center Orbit -> Top Down -> Ground Hero
+        """
+        if positions is None or len(positions) == 0: 
+            self.update(dt) # Fallback to standard
+            return
+
+        self.phase_time += dt          
+
+        # 1. Feature Extraction (Real-time Scene Analysis)
+        # Find highest drone (Peak)
+        idx_highest = np.argmax(positions[:, 1])
+        peak_pos = positions[idx_highest]
+        
+        # Calculate Cloud Center
+        center_mass = np.mean(positions, axis=0)
+        
+        # Calculate formation bounds (for better framing)
+        min_pos = np.min(positions, axis=0)
+        max_pos = np.max(positions, axis=0)
+        formation_radius = np.max(max_pos - min_pos) * 0.5
+        
+        # 2. State Cycle (20s loop)
+        cycle_time = (self.phase_time % 20.0) 
+        
+        target_cam_pos = np.array([0.0, 0.0, 0.0])
+        target_look_at = center_mass
+        
+        if cycle_time < 5.0: 
+            # PHASE A: GLOBAL ORBIT (Majestic Overview)
+            angle = self.phase_time * 0.15
+            dist = 320.0 + formation_radius * 0.5  # Scale with formation
+            target_cam_pos = center_mass + np.array([np.cos(angle)*dist, 140.0, np.sin(angle)*dist])
+            target_look_at = center_mass
+
+        elif cycle_time < 10.0:
+            # PHASE B: "THE SKIM" (Dynamic Peak Chasing)
+            # Follow just behind the highest point, more responsive
+            target_cam_pos = peak_pos + np.array([-35.0, 25.0, 35.0])
+            target_look_at = peak_pos + np.array([5, 10, -5])  # Look slightly ahead
+
+        elif cycle_time < 15.0:
+            # PHASE C: TOP DOWN (Technical/Map View) - better framing
+            target_cam_pos = center_mass + np.array([0.0, 300.0 + formation_radius * 0.3, 0.1])
+            target_look_at = center_mass + np.array([0, 30, 0])
+
+        else:
+            # PHASE D: GROUND UP (Heroic Scale) - closer and more dramatic
+            target_cam_pos = np.array([center_mass[0] + 40, 5.0, center_mass[2] + 200.0])
+            target_look_at = center_mass + np.array([0, 70, 0])
+
+        # 3. Cinematic Smoothing (Faster lerp for more responsive camera)
+        smooth = 3.0 * dt  # Increased from 2.0 for snappier response
+        self.position = self.position * (1 - smooth) + target_cam_pos * smooth
+        self.target = self.target * (1 - smooth) + target_look_at * smooth
 
     def update(self, dt):
         """Narrative update: Respects Hierarchy, Ground, and Parallax."""
@@ -142,6 +206,19 @@ class CameraSystem:
                 self.target_dist = 280.0
                 self.target_pitch = 22.0
                 self.target_yaw += 0.8 * dt # Smooth orbital rotation around the map
+
+        # --- DYNAMIC TEXT PHASES (2-5) ---
+        if self.current_phase in ["phase2_anem", "phase3_jcn", "phase4_fes", "phase5_niger"]:
+            # Continuous slow orbit to show 3D depth
+            self.target_yaw += 3.0 * dt 
+            
+            # Gentle zoom in/out breathing
+            breath = 20.0 * math.sin(self.phase_time * 0.4)
+            # Find base viewing distance (approx 260 from preset)
+            base_dist = 260.0
+            if self.current_phase == "phase5_niger": base_dist = 300.0 # Bigger for big logo
+            
+            self.target_dist = base_dist + breath
 
         # 1. Smooth Interpolation to Targets
         self.current_dist += (self.target_dist - self.current_dist) * self.lerp_speed * dt

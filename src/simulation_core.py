@@ -8,6 +8,8 @@ from drone_manager import DroneManager
 from camera_system import CameraSystem
 from lighting_system import LightingSystem
 from formation_library import FormationLibrary
+from audio_system import AudioSystem
+from shader_system import PostProcessingPipeline
 
 class SimulationCore(QOpenGLWidget):
     def __init__(self, sim_config, vis_config):
@@ -21,6 +23,8 @@ class SimulationCore(QOpenGLWidget):
         self.camera = CameraSystem()
         self.lighting = LightingSystem(vis_config)
         self.formations = FormationLibrary()
+        self.audio = AudioSystem()  # New audio system
+        self.post_processing = PostProcessingPipeline()  # Bloom/glow shaders
         
         # Render Timer
         self.timer = QTimer()
@@ -36,62 +40,68 @@ class SimulationCore(QOpenGLWidget):
         self.state_timer = 0.0
         self.phase_state = 0
         self.target_colors = np.ones((self.sim_config['simulation']['max_drones'], 3)) # Default White
+        
+        # === AUDIO REACTIVITY ===
+        self.audio_energy = 0.5  # Normalized [0, 1], from FFT or placeholder
+        self.audio_bpm = 120.0
+        self.transition_mode = False  # Flag for morphing transitions
+        self.transition_start_pos = None
+        self.transition_target_pos = None
+        self.transition_progress = 0.0
+        
+        # === AUTO-SEQUENCING SYSTEM ===
+        self.sequence_enabled = False
+        self.sequence_list = ["phase2_anem", "phase_22eme_edition", "phase3_jcn", "phase4_fes"]
+        self.sequence_index = 0
+        self.sequence_timer = 0.0
+        self.sequence_duration = 8.0  # Seconds per phase
+        self.sequence_paused = False
+        
+        # === POST-PROCESSING EFFECTS ===
+        self.bloom_enabled = True  # Default: enable bloom
+        self.bloom_intensity = 1.5
+        self.bloom_threshold = 0.7
 
     def initializeGL(self):
-        gl.glClearColor(0, 0, 0, 1) # DEEP BLACK - "beaucoup plus noir, profond"
+        gl.glClearColor(0.02, 0.02, 0.05, 1) # DEEP COSMIC BLUE/BLACK
         gl.glEnable(gl.GL_DEPTH_TEST)
         gl.glEnable(gl.GL_CULL_FACE)
         
+        # --- ENABLE BLENDING FOR GLOW/BLOOM ---
+        gl.glEnable(gl.GL_BLEND)
+        gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+        
         self.lighting.setup()
         
-        # Initialize display list or VBO for drone model here if needed
-        # For now, immediate mode / display lists for simplicity
+        # OPTIMIZATION: USE A SIMPLE QUAD FOR DRONE (BILLBOARD) instead of heavy geometry
+        # This Display List will just be a flat square on XY plane
         self.drone_display_list = gl.glGenLists(1)
         gl.glNewList(self.drone_display_list, gl.GL_COMPILE)
-        self._draw_drone_model()
+        
+        # Radius 0.5 quad centered
+        gl.glBegin(gl.GL_QUADS)
+        gl.glTexCoord2f(0, 0); gl.glVertex3f(-0.5, -0.5, 0)
+        gl.glTexCoord2f(1, 0); gl.glVertex3f( 0.5, -0.5, 0)
+        gl.glTexCoord2f(1, 1); gl.glVertex3f( 0.5,  0.5, 0)
+        gl.glTexCoord2f(0, 1); gl.glVertex3f(-0.5,  0.5, 0)
+        gl.glEnd()
+        
         gl.glEndList()
 
     def _draw_sphere(self, radius, slices, stacks):
-        for i in range(stacks):
-            lat0 = math.pi * (-0.5 + float(i) / stacks)
-            z0 = math.sin(lat0) * radius
-            zr0 = math.cos(lat0) * radius
-            
-            lat1 = math.pi * (-0.5 + float(i+1) / stacks)
-            z1 = math.sin(lat1) * radius
-            zr1 = math.cos(lat1) * radius
-            
-            gl.glBegin(gl.GL_QUAD_STRIP)
-            for j in range(slices + 1):
-                lng = 2 * math.pi * float(j) / slices
-                x = math.cos(lng)
-                y = math.sin(lng)
-                
-                gl.glNormal3f(x * zr0, y * zr0, z0)
-                gl.glVertex3f(x * zr0, y * zr0, z0)
-                
-                gl.glNormal3f(x * zr1, y * zr1, z1)
-                gl.glVertex3f(x * zr1, y * zr1, z1)
-            gl.glEnd()
+        # Deprecated / Unused for performance
+        pass
 
     def _draw_drone_model(self):
-        # Simple cube/cross representation if OBJ loader not ready
-        size = self.vis_config['visuals']['drone']['size']
-        gl.glPushMatrix()
-        gl.glScalef(size, size, size)
+        # Deprecated logic - Replaced by billboard in paintGL
+        pass
         
-        # Body
-        self._draw_sphere(0.2, 8, 8)
-        
-        # Arms
-        gl.glBegin(gl.GL_LINES)
-        gl.glVertex3f(-0.5, 0, 0)
-        gl.glVertex3f(0.5, 0, 0)
-        gl.glVertex3f(0, 0, -0.5)
-        gl.glVertex3f(0, 0, 0.5)
-        gl.glEnd()
-        
-        gl.glPopMatrix()
+    def _draw_billboard_texture(self):
+        # Procedural Circle Texture Generation (Soft Glow)
+        # Ideally we generate a texture once in initGL
+        # For this prototype we rely on geometry alpha falloff which is hard without shaders
+        # So we stick to simple GL_POINTS with smoothing or lightweight geometry
+        pass 
 
     def resizeGL(self, w, h):
         gl.glViewport(0, 0, w, h)
@@ -111,22 +121,37 @@ class SimulationCore(QOpenGLWidget):
         # Draw Drones
         positions, colors = self.drone_manager.get_render_data()
         
-        # Optimization: Use instancing if possible, but loop is fine for 1000 drones in Python if logic is light
+        # OPTIMIZATION: USE GL_POINT_SPRITES (Fastest possible method for thousands of particles)
+        # Instead of looping and drawing spheres
+        
+        gl.glEnable(gl.GL_POINT_SMOOTH)
+        
+        # 1. Macro Halo (Background Glow) - Draw first, No Depth Write
+        gl.glDepthMask(gl.GL_FALSE)
+        gl.glPointSize(12.0)
+        gl.glBegin(gl.GL_POINTS)
         for i in range(len(positions)):
-            pos = positions[i]
+            # Halo is colored and transparent
+            # Manually simulate pulse here inside loop is costly but acceptable for 1000 points
+            # Vectorizing this would be better but requires VBOs which is complex refactor
             col = colors[i]
-            
-            gl.glPushMatrix()
-            gl.glTranslatef(pos[0], pos[1], pos[2])
-            
-            # Distance based LOD or Size modulation could go here
-            
-            gl.glColor3f(col[0], col[1], col[2])
-            gl.glCallList(self.drone_display_list)
-            
-            gl.glPopMatrix()
+            # Simple flicker
+            pulse = 0.2 + 0.05 * math.sin(i*0.13 + self.phase_timer*5.0)
+            gl.glColor4f(col[0], col[1], col[2], pulse) 
+            gl.glVertex3f(positions[i,0], positions[i,1], positions[i,2])
+        gl.glEnd()
+        gl.glDepthMask(gl.GL_TRUE)
+        
+        # 2. Core (White Hot Center) - Draw second
+        gl.glPointSize(4.0)
+        gl.glColor4f(1.0, 1.0, 1.0, 1.0)
+        gl.glBegin(gl.GL_POINTS)
+        for i in range(len(positions)):
+             gl.glVertex3f(positions[i,0], positions[i,1], positions[i,2])
+        gl.glEnd()
             
         # Draw Ground Grid
+        self._draw_grid()
         self._draw_grid()
 
     def _draw_grid(self):
@@ -150,6 +175,25 @@ class SimulationCore(QOpenGLWidget):
         num_drones = self.sim_config['simulation']['max_drones']
         targets, colors = self.formations.get_phase(phase_name, num_drones)
         
+        # === MORPHING TRANSITION SETUP ===
+        # Store current positions as start point for smooth morphing
+        # Only enable transition for specific phases and autosequence
+        should_transition = phase_name in ["phase10_touareg", "phase_touareg_spiral"] or self.sequence_enabled
+        
+        if should_transition:
+            if self.transition_mode == False:  # First time transitioning
+                self.transition_start_pos = self.drone_manager.positions.copy()
+            else:
+                self.transition_start_pos = self.drone_manager.positions.copy()
+            
+            self.transition_target_pos = targets
+            self.transition_progress = 0.0
+            self.transition_mode = True
+            self.transition_duration = 2.0  # 2 seconds for smooth morphing
+        else:
+            # No transition for other phases - instant change
+            self.transition_mode = False
+        
         # --- SCENOGRAPHIC COLOR OVERRIDE IN TRANSIT ---
         self.drone_manager.set_formation(targets, colors)
         
@@ -167,20 +211,48 @@ class SimulationCore(QOpenGLWidget):
             self.phase_timer += dt
             self.state_timer += dt
             
+            # === AUDIO ANALYSIS UPDATE ===
+            if self.audio.audio_loaded:
+                self.audio.update(dt)
+                self.audio_energy = self.audio.get_audio_energy()
+            else:
+                # Placeholder: sine wave modulation
+                self.audio_energy = 0.5 + 0.5 * np.sin(self.phase_timer * 2.0)
+            
+            # === AUTO-SEQUENCING SYSTEM ===
+            if self.sequence_enabled and not self.sequence_paused:
+                self.sequence_timer += dt
+                if self.sequence_timer >= self.sequence_duration:
+                    # Advance to next phase
+                    self.sequence_timer = 0.0
+                    self.sequence_index = (self.sequence_index + 1) % len(self.sequence_list)
+                    next_phase = self.sequence_list[self.sequence_index]
+                    self.set_phase(next_phase)
+            
             # --- LIVING CINEMATIC CAMERA ---
             # Handles smooth transitions, phase-presets, and micro-drifts
-            self.camera.update(dt)
+            # Use Smart Cinematic for dynamic "living" phases (Act 1 Desert, Act 9 Eagle)
+            if self.current_phase in ["act1_desert", "act9_eagle", "miroir_celeste"]:
+                positions, _ = self.drone_manager.get_render_data()
+                self.camera.update_smart_cinematic(positions, dt)
+            else:
+                self.camera.update(dt)
             
             # --- STATE MACHINE LOGIC ---
             
             # Constants
-            TRANSIT_TIME = 6.0 # Time for travel
+            TRANSIT_TIME = 4.0 # Time for travel (Faster)
             BLACKOUT_TIME = 0.5 # Arret/Extinction
             FADE_IN_TIME = 1.0  # Allumage Progressif
             SHOW_TIME = 1.5     # Jeu de lumiere
             
             # Default Targets (Static)
-            current_targets, current_colors = self.formations.get_phase(self.current_phase, self.sim_config['simulation']['max_drones'])
+            current_targets, current_colors = self.formations.get_phase(
+                self.current_phase, 
+                self.sim_config['simulation']['max_drones'],
+                t=self.phase_timer,
+                audio_energy=self.audio_energy
+            )
             
             # --- PHASE SPECIFIC OVERRIDES (Animation) ---
             if self.current_phase == "phase1_pluie":
@@ -225,7 +297,7 @@ class SimulationCore(QOpenGLWidget):
             
             # Force dynamic refresh for specialized cinematic phases
             if self.current_phase in ["miroir_celeste", "act1_desert", "phase1_pluie", "phase10_touareg", "act8_finale", "act9_eagle"]:
-                current_targets, current_colors = self.formations.get_phase(self.current_phase, self.drone_manager.num_drones, t=self.phase_timer)
+                current_targets, current_colors = self.formations.get_phase(self.current_phase, self.drone_manager.num_drones, t=self.phase_timer, audio_energy=self.audio_energy)
 
             # --- PHASE 6: FLAG LOGIC (Neutral Stars until Reveal) ---
             if is_flag_phase and self.phase_state < 3: # Before Reveal
@@ -255,7 +327,7 @@ class SimulationCore(QOpenGLWidget):
                     current_colors = current_colors * intensity
                 
                 # Update Transit Time
-                if self.state_timer > 6.0: 
+                if self.state_timer > TRANSIT_TIME: 
                     self.phase_state = 1 # ARRIVED
                     self.state_timer = 0
             
@@ -316,19 +388,103 @@ class SimulationCore(QOpenGLWidget):
                 
             # Apply to Manager
             self.drone_manager.set_formation(current_targets, current_colors)
-            self.drone_manager.update(dt)
+            self.drone_manager.update(dt, time_absolute=self.phase_timer)
+            
+            # === MORPHING TRANSITION LOGIC ===
+            # If in transition mode, smoothly interpolate positions toward target formation
+            if self.transition_mode:
+                self.transition_progress += dt / self.transition_duration
+                
+                if self.transition_progress < 1.0:
+                    # Ease-in-out cubic interpolation for smooth morphing
+                    t_ease = self.transition_progress
+                    t_ease = t_ease * t_ease * (3.0 - 2.0 * t_ease) if t_ease <= 1.0 else 1.0
+                    
+                    # Linear interpolation with easing
+                    morphed_pos = (1.0 - t_ease) * self.transition_start_pos + t_ease * self.transition_target_pos
+                    self.drone_manager.positions[:] = morphed_pos
+                else:
+                    # Transition complete
+                    self.transition_mode = False
+                    self.drone_manager.positions[:] = self.transition_target_pos
             
         self.update()
 
     def play(self):
         self.is_playing = True
+        # Play audio if loaded
+        if self.audio.audio_loaded:
+            self.audio.play()
 
     def pause(self):
         self.is_playing = False
+        # Pause audio if playing
+        if self.audio.audio_loaded:
+            self.audio.pause()
 
     def reset(self):
         self.is_playing = False
+        # Stop audio playback
+        if self.audio.audio_loaded:
+            self.audio.stop()
         self.update()
+    
+    # === AUTO-SEQUENCING CONTROLS ===
+    def start_sequence(self, sequence_list=None, duration_per_phase=8.0):
+        """Start automatic phase sequencing."""
+        if sequence_list:
+            self.sequence_list = sequence_list
+        self.sequence_duration = duration_per_phase
+        self.sequence_index = 0
+        self.sequence_timer = 0.0
+        self.sequence_paused = False
+        self.sequence_enabled = True
+        self.is_playing = True
+        # Start with first phase
+        self.set_phase(self.sequence_list[0])
+    
+    def stop_sequence(self):
+        """Stop automatic sequencing."""
+        self.sequence_enabled = False
+    
+    def pause_sequence(self):
+        """Pause/resume automatic sequencing."""
+        self.sequence_paused = not self.sequence_paused
+    
+    def rewind_sequence(self):
+        """Reset to first phase in sequence."""
+        if self.sequence_enabled:
+            self.sequence_index = 0
+            self.sequence_timer = 0.0
+            self.set_phase(self.sequence_list[0])
+    
+    def next_phase_in_sequence(self):
+        """Manually advance to next phase."""
+        if self.sequence_enabled:
+            self.sequence_index = (self.sequence_index + 1) % len(self.sequence_list)
+            self.sequence_timer = 0.0
+            self.set_phase(self.sequence_list[self.sequence_index])
+    
+    def prev_phase_in_sequence(self):
+        """Manually go back to previous phase."""
+        if self.sequence_enabled:
+            self.sequence_index = (self.sequence_index - 1) % len(self.sequence_list)
+            self.sequence_timer = 0.0
+            self.set_phase(self.sequence_list[self.sequence_index])
+    
+    # === BLOOM/GLOW CONTROLS ===
+    def toggle_bloom(self):
+        """Toggle bloom effect on/off."""
+        self.bloom_enabled = not self.bloom_enabled
+        return self.bloom_enabled
+    
+    def set_bloom_intensity(self, intensity):
+        """Set bloom intensity (0.0 to 3.0)."""
+        self.bloom_intensity = np.clip(intensity, 0.0, 3.0)
+    
+    def load_audio_file(self, filepath):
+        """Load audio file for music reactivity."""
+        return self.audio.load_audio(filepath)
 
     def mousePressEvent(self, event):
         self.last_mouse_pos = event.pos()
