@@ -178,7 +178,7 @@ class SimulationCore(QOpenGLWidget):
         # === MORPHING TRANSITION SETUP ===
         # Store current positions as start point for smooth morphing
         # Only enable transition for specific phases and autosequence
-        should_transition = phase_name in ["phase10_touareg", "phase_touareg_spiral"] or self.sequence_enabled
+        should_transition = phase_name in ["phase10_touareg", "dubai_camel", "phase_touareg_spiral"] or self.sequence_enabled
         
         if should_transition:
             if self.transition_mode == False:  # First time transitioning
@@ -296,7 +296,7 @@ class SimulationCore(QOpenGLWidget):
             is_flag_phase = self.current_phase == "phase6_drapeau"
             
             # Force dynamic refresh for specialized cinematic phases
-            if self.current_phase in ["miroir_celeste", "act1_desert", "phase1_pluie", "phase10_touareg", "act8_finale", "act9_eagle"]:
+            if self.current_phase in ["miroir_celeste", "act1_desert", "phase1_pluie", "phase10_touareg", "dubai_camel", "act5_tree_of_life", "act8_finale", "act9_eagle"]:
                 current_targets, current_colors = self.formations.get_phase(self.current_phase, self.drone_manager.num_drones, t=self.phase_timer, audio_energy=self.audio_energy)
 
             # --- PHASE 6: FLAG LOGIC (Neutral Stars until Reveal) ---
@@ -353,7 +353,7 @@ class SimulationCore(QOpenGLWidget):
                 current_colors = current_colors * brightness
                 
                 if self.state_timer > FADE_IN_TIME:
-                    if self.current_phase in ["phase11_croix_agadez", "phase1_pluie", "phase7_carte", "act0_pre_opening", "act1_desert", "act6_identity", "act8_finale"]:
+                    if self.current_phase in ["phase11_croix_agadez", "phase1_pluie", "phase7_carte", "act1_desert", "act6_identity", "act8_finale"]:
                         self.phase_state = 5 # Skip flashy show, go straight to Hold
                     else:
                         self.phase_state = 4 # LIGHT SHOW / Sparkling Birth

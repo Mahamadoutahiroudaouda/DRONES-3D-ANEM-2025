@@ -220,6 +220,8 @@ class MainWindow(QMainWindow):
             ("✨ MIROIR CÉLESTE (45s) ✨", "miroir_celeste"),
             ("Phase 9: Gde Mosquée", "phase9_agadez"),
             ("Phase 10: Touareg", "phase10_touareg"),
+            ("🐫 Chameau Dubaï 🐫", "dubai_camel"),
+            ("🌳 Arbre de Vie 🌳", "act5_tree_of_life"),
             ("Phase 11: Croix d'Agadez", "phase11_croix_agadez"),
         ]
 

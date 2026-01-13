@@ -23,6 +23,7 @@ class CameraSystem:
             # Global Intent: Vision System (70-120m)
             "flag": {"dist": 350.0, "yaw": 20.0, "pitch": -8.0, "target_y": 90.0, "intent": "vision"},
             "wide": {"dist": 360.0, "yaw": 20.0, "pitch": -7.0, "target_y": 95.0, "intent": "vision"},
+            "wide_opening": {"dist": 480.0, "yaw": 0.0, "pitch": -10.0, "target_y": 80.0, "intent": "vision"},
             
             # Africa Map - direct overhead view (drone view)
             "africa_map": {"dist": 150.0, "yaw": 0.0, "pitch": -89.0, "target_y": 50.0, "intent": "vision"},
@@ -31,7 +32,7 @@ class CameraSystem:
         # Mapping phases to presets
         self.phase_map = {
             "phase1_pluie": "pluie",
-            "act0_pre_opening": "wide",
+            "act0_pre_opening": "wide_opening",
             "act1_desert": "desert",
             "act2_sacred_rain": "ground",
             "act3_typography": "text",

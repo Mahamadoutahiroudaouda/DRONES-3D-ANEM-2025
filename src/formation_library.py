@@ -86,6 +86,7 @@ class FormationLibrary:
         
         # Cache for static formations
         self._cache = {}
+        self._phase10_cache = {}
 
     def get_phase(self, phase_name, num_drones, **kwargs):
         """
@@ -138,8 +139,12 @@ class FormationLibrary:
         elif phase_name == "phase10_touareg":
             t = kwargs.get('t', 0.0)
             return self._phase_10_touareg(num_drones, t)
+        elif phase_name == "dubai_camel":
+            t = kwargs.get('t', 0.0)
+            return self._phase_dubai_camel(num_drones, t)
         elif phase_name == "act0_pre_opening":
-            return self._act_0_pre_opening(num_drones)
+            t = kwargs.get('t', 0.0)
+            return self._act_0_pre_opening(num_drones, t)
         elif phase_name == "act1_desert":
             t = kwargs.get('t', 0.0)
             return self._act_1_desert(num_drones, t)
@@ -157,9 +162,15 @@ class FormationLibrary:
             audio_energy = kwargs.get('audio_energy', self.audio_energy)
             return self._phase_22eme_edition(num_drones, t, audio_energy)
         elif phase_name == "act4_science":
-            return self._act_4_science(num_drones)
+            t = kwargs.get('t', 0.0)
+            audio_energy = kwargs.get('audio_energy', self.audio_energy)
+            return self._act_4_science(num_drones, t, audio_energy)
         elif phase_name == "act5_wildlife":
             return self._act_5_wildlife(num_drones)
+        elif phase_name == "act5_tree_of_life":
+            t = kwargs.get('t', 0.0)
+            audio_energy = kwargs.get('audio_energy', self.audio_energy)
+            return self._act_5_tree_of_life(num_drones, t, audio_energy)
         elif phase_name == "act5_african_soul":
             t = kwargs.get('t', 0.0)
             audio_energy = kwargs.get('audio_energy', self.audio_energy)
@@ -529,11 +540,94 @@ class FormationLibrary:
         
         return pos, sampled_colors
 
-    def _act_0_pre_opening(self, num):
-        # Sparse stars (Silence avant la naissance)
-        pos = np.random.uniform(-150, 150, (num, 3))
-        pos[:, 1] = np.random.uniform(50, 150, num) # High altitude
-        cols = np.tile(self.colors["star_white"], (num, 1))
+    def _act_0_pre_opening(self, num, t=0.0):
+        # "Voile cosmique" : rideau dense qui se replie et reste cadré
+        rng = np.random.default_rng(2025 + num)
+
+        curtain_width = 120.0
+        curtain_height = 220.0
+        curtain_z = 150.0  # rideau devant caméra (120-200m)
+        split_time = 3.0  # secondes d'ouverture du rideau
+
+        # Grille régulière dense (feuille pleine) avec léger jitter pour éviter la grille parfaite
+        nx = max(10, int(np.sqrt(num * 0.9)))
+        ny = max(12, int(num / nx) + 1)
+        grid_x = np.linspace(-curtain_width * 0.5, curtain_width * 0.5, nx)
+        grid_y = np.linspace(15.0, 15.0 + curtain_height, ny)
+        gx, gy = np.meshgrid(grid_x, grid_y)
+        coords = np.column_stack((gx.flatten(), gy.flatten()))
+        select = coords[:num]
+
+        base_x = select[:, 0] + rng.normal(0.0, 0.9, len(select))
+        base_y = select[:, 1] + rng.normal(0.0, 1.6, len(select))
+
+        # Drapé : plis doux via modulation sinusoïdale sur Z (et un léger contre-phase sur X)
+        fold_amp = 6.0
+        fold_freq_y = 0.055
+        fold_freq_x = 0.04
+        fold_phase = t * 0.35
+        fold_z = np.sin(base_y * fold_freq_y + fold_phase) * fold_amp
+        fold_z += np.sin(base_x * fold_freq_x - fold_phase * 0.7) * (fold_amp * 0.4)
+
+        base_z = curtain_z + fold_z + rng.normal(0.0, 1.8, len(select))
+
+        pos = np.zeros((num, 3))
+        pos[:, 0] = base_x
+        pos[:, 1] = base_y
+        pos[:, 2] = base_z
+
+        left_mask = base_x < 0.0
+        dust_mask = rng.random(num) > 0.995  # Quelques poussières seulement
+
+        # Ouverture du rideau (split latéral)
+        split_progress = np.clip(t / split_time, 0.0, 1.0)
+        split_ease = split_progress * split_progress * (3.0 - 2.0 * split_progress)
+        # Maintient le centre fermé au début pour éviter un trou
+        hold_center = np.clip((t - 1.1) / 0.9, 0.0, 1.0)
+        split_ease *= hold_center
+        max_offset = 70.0
+        pos[left_mask, 0] -= split_ease * max_offset
+        pos[~left_mask, 0] += split_ease * max_offset
+
+        # Courbure légère en S sur la profondeur pour un effet soyeux
+        s_wave = np.sin(base_y * 0.045 + t * 0.7) * 2.4 * (0.4 + 0.6 * split_ease)
+        pos[:, 2] += s_wave * np.sign(base_x + 1e-3)
+
+        # Vibration verticale tant que le rideau est fermé
+        ripple = np.sin(base_x * 0.02 + t * 2.0) * 1.4 * (1.0 - split_ease)
+        pos[:, 1] += ripple
+
+        # Poussières qui restent près du centre après l'ouverture
+        dust_progress = np.clip((t - split_time) / 1.0, 0.0, 1.0)
+        pos[dust_mask, 0] *= 1.0 - dust_progress * 0.6
+        pos[dust_mask, 2] = curtain_z + np.sin(t * 1.2 + pos[dust_mask, 0] * 0.01) * 6.0
+        pos[dust_mask, 1] += np.sin(t * 1.5 + pos[dust_mask, 0] * 0.05) * 5.0
+
+        # Couleurs
+        cols = np.tile(self.colors["star_blue"], (num, 1))
+        # Gradient vertical : plus lumineux en bas
+        y_norm = np.clip((pos[:, 1] - 15.0) / curtain_height, 0.0, 1.0)
+        base_intensity = 0.22 + 0.18 * (1.0 - split_ease)
+        base_intensity *= 0.9 + 0.35 * (1.0 - y_norm)
+        cols *= base_intensity[:, None]
+
+        # Points lumineux (20%) qui pulsent légèrement
+        bright_mask = rng.random(num) > 0.8
+        pulse = 1.2 + 0.3 * np.sin(t * 2.2 + base_x * 0.05)
+        blanc = np.array(self.colors["blanc_pure"], dtype=float)
+        cols[bright_mask] = blanc * pulse[bright_mask, None]
+
+        # Filament central brillant pendant l'ouverture
+        filament_mask = (~dust_mask) & (np.abs(pos[:, 0]) < 12.0) & (split_ease > 0.45)
+        cols[filament_mask] = blanc * 1.6
+
+        # Poussières adoucies
+        cols[dust_mask] *= 0.65
+
+        # Extinction progressive après 5.5s
+        fade = 1.0 - np.clip((t - 5.5) / 1.5, 0.0, 1.0)
+        cols *= max(fade, 0.0)
+
         return pos, cols
 
     def _act_1_desert(self, num, t=0.0):
@@ -621,116 +715,420 @@ class FormationLibrary:
         return pos, cols
         
     def _phase_1_pluie(self, num, t=0.0, audio_energy=0.5):
-        # Intelligent Rain (Pluie Sacrée - Ouverture Sensorielle) - ADVANCED
-        # Individual trajectory perturbations, height-based colors, audio reactivity
-        pos = np.zeros((num, 3))
-        cols = np.zeros((num, 3))
-        
-        # Grid parameters: Arc-based rain
-        num_arcs = 12
-        drones_per_arc = num // num_arcs
-        
-        spacing_x = 20.0
-        cycle_h = 140.0 # From 160m down to 20m
-        descent_speed = 12.0 * (0.8 + 0.4 * audio_energy) # Rhythmic modulation via audio energy
-        
-        idx = 0
-        for i in range(num_arcs):
-            # Each arc has a slight horizontal offset and curve
-            off_x = (i - num_arcs/2) * spacing_x
-            z_arc = 15.0 * np.sin(i * 0.5) # Curve depth
-            
-            for j in range(drones_per_arc):
-                if idx >= num: break
-                
-                # === Vertical Distribution (Infinite Fall) ===
-                base_y = 160.0 - (j * (cycle_h / drones_per_arc))
-                y = 20.0 + (base_y - descent_speed * t) % cycle_h
-                
-                # === Individual Trajectory Perturbations (Organic Variation) ===
-                # Each drone has unique noise based on its index
-                drone_phase = idx * 0.17 + t * 0.5
-                
-                # Micro-oscillation on X/Z (Sideways wind effect)
-                oscillation_x = 3.0 * np.sin(drone_phase) * np.cos(y * 0.02)
-                oscillation_z = 2.5 * np.cos(drone_phase * 1.3) * np.sin(y * 0.02)
-                
-                # Variable vertical speed per drone
-                speed_variation = 0.8 + 0.4 * np.sin(idx * 0.01 + t * 0.2)
-                y_varied = 20.0 + (base_y - descent_speed * speed_variation * t) % cycle_h
-                
-                # Slight horizontal curve (S-shape arc)
-                x = off_x + 8.0 * np.sin(y_varied * 0.05) + oscillation_x
-                z = z_arc + 10.0 * np.cos(y_varied * 0.05) + oscillation_z
-                
-                pos[idx] = [x, y_varied, z]
-                
-                # === Height-Based Color Gradient (Atmospheric Effect) ===
-                # Top (160m): Cold Blue Night
-                # Mid (80m): Transition Cyan
-                # Bottom (20m): Hot White/Orange (Impact luminosity)
-                
-                y_normalized = (y_varied - 20.0) / 140.0  # 0.0 (bottom) to 1.0 (top)
-                
-                if y_normalized > 0.7:  # Upper atmosphere (cold)
-                    # Blend star_blue to turquoise
-                    t_blend = (y_normalized - 0.7) / 0.3
-                    cols[idx] = (1 - t_blend) * np.array(self.colors["turquoise"]) + t_blend * np.array(self.colors["star_blue"])
-                elif y_normalized > 0.3:  # Mid-atmosphere (transition)
-                    # Turquoise to white
-                    t_blend = (y_normalized - 0.3) / 0.4
-                    cols[idx] = (1 - t_blend) * np.array(self.colors["blanc_pure"]) + t_blend * np.array(self.colors["turquoise"])
-                else:  # Near impact (hot luminosity)
-                    # White to orange glow (splash zone)
-                    t_blend = y_normalized / 0.3
-                    impact_color = np.array([1.0, 0.6, 0.2])  # Warm orange-white
-                    cols[idx] = (1 - t_blend) * impact_color + t_blend * np.array(self.colors["blanc_pure"])
-                
-                # === Splash Glow Effect (Near Ground) ===
-                # Enhance brightness at impact zone (Y < 30m) for bloom effect
-                if y_varied < 30.0:
-                    splash_intensity = 1.0 - (y_varied / 30.0)  # 1.0 at ground, 0.0 at 30m
-                    # Brighten color (artificial glow)
-                    cols[idx] = np.clip(cols[idx] * (1.0 + 0.5 * splash_intensity), 0, 1)
-                
-                # === Flash Effect (Random "Sparkle") ===
-                # 10% of drones sparkle, synchronized with audio kicks
-                if (idx + int(t*2)) % 10 == 0:
-                    flash_strength = 0.5 + 0.5 * audio_energy
-                    cols[idx] = cols[idx] * (1.0 + flash_strength)  # Brighten
-                    cols[idx] = np.clip(cols[idx], 0, 1)  # Clamp to valid range
-                    
-                idx += 1
-                
+        # Cœur lumineux rouge (contour + remplissage optionnel)
+        # Paramétrique: x=16 sin^3 t, y=13 cos t - 5 cos 2t - 2 cos 3t - cos 4t
+        contour_ratio = 0.6
+        n_contour = int(num * contour_ratio)
+        n_fill = num - n_contour
+
+        # Courbe de cœur
+        ang_contour = np.linspace(0, 2*np.pi, n_contour, endpoint=False)
+        x = 16 * (np.sin(ang_contour) ** 3)
+        y = 13 * np.cos(ang_contour) - 5 * np.cos(2 * ang_contour) - 2 * np.cos(3 * ang_contour) - np.cos(4 * ang_contour)
+        scale = 3.8  # ~120m largeur, ~100m hauteur
+        x *= scale
+        y *= scale
+
+        contour_pos = np.zeros((n_contour, 3))
+        contour_pos[:, 0] = x
+        contour_pos[:, 1] = y
+
+        # Remplissage
+        if n_fill > 0:
+            ang_fill = np.random.uniform(0, 2*np.pi, n_fill)
+            r_fill = np.random.uniform(0.0, 1.0, n_fill) ** 0.6  # densité vers le bord
+            fx = 16 * (np.sin(ang_fill) ** 3) * scale * r_fill
+            fy = (13 * np.cos(ang_fill) - 5 * np.cos(2 * ang_fill) - 2 * np.cos(3 * ang_fill) - np.cos(4 * ang_fill)) * scale * r_fill
+            fill_pos = np.zeros((n_fill, 3))
+            fill_pos[:, 0] = fx
+            fill_pos[:, 1] = fy
+            pos = np.vstack([contour_pos, fill_pos])
+        else:
+            pos = contour_pos
+
+        # Centrage scène
+        center = np.array([0.0, 80.0, 0.0])
+        pos += center
+
+        # Légère épaisseur/jitter
+        pos[:, 2] += np.random.uniform(-2.0, 2.0, len(pos))
+        pos[:, 0] += np.random.uniform(-0.5, 0.5, len(pos))
+        pos[:, 1] += np.random.uniform(-0.5, 0.5, len(pos))
+
+        # Couleurs rouge bloom
+        base_red = np.array([1.0, 0.12, 0.12], dtype=float)
+        cols = np.tile(base_red, (len(pos), 1))
+        pulse = 0.9 + 0.15 * np.sin(t * 2.0 + np.linspace(0, 3.14, len(pos)))
+        cols *= pulse[:, None]
+        cols = np.clip(cols, 0.0, 1.0)
+
         return pos, cols
 
-    def _act_4_science(self, num):
-        # Universal Science: Fibonacci Spiral and Sine Wave
-        # Intertwined math-art
-        pos = np.zeros((num, 3))
-        cols = np.tile(self.colors["star_blue"], (num, 1))
+    def _act_4_science(self, num, t=0.0, audio_energy=0.5):
+        # ADN : double hélice + barreaux transversaux
+        # Paramètres géométriques
+        turns = 4.0
+        radius = 20.0
+        height = 150.0
+        base_y = 20.0
+
+        # Répartition drones : hélices 55%, barreaux 45%
+        helix_ratio = 0.55
+        n_helix = max(2, int(num * helix_ratio))
+        n_per_helix = n_helix // 2
+        n_rungs = num - 2 * n_per_helix
+
+        # === Hélices (cyan) ===
+        t_vals = np.linspace(0, turns * 2 * np.pi, n_per_helix)
+        y_vals = base_y + (t_vals / (turns * 2 * np.pi)) * height
+        x1 = radius * np.cos(t_vals)
+        z1 = radius * np.sin(t_vals)
+        x2 = radius * np.cos(t_vals + np.pi)
+        z2 = radius * np.sin(t_vals + np.pi)
+
+        helix1 = np.column_stack((x1, y_vals, z1))
+        helix2 = np.column_stack((x2, y_vals, z2))
+
+        # Pulsation lumineuse le long de l'axe
+        cyan = np.array([0.05, 0.9, 1.0], dtype=float)
+        pulse = 0.9 + 0.15 * np.sin(1.6 * t + (y_vals / height) * 4 * np.pi)
+        cols_h1 = cyan * pulse[:, None]
+        cols_h2 = cyan * pulse[:, None]
+
+        # === Barreaux (magenta) ===
+        rung_samples = 8  # points par barre
+        rung_count = max(6, n_rungs // rung_samples)
+        t_rung = np.linspace(0, turns * 2 * np.pi, rung_count)
+        y_rung = base_y + (t_rung / (turns * 2 * np.pi)) * height
+        x1_r = radius * np.cos(t_rung)
+        z1_r = radius * np.sin(t_rung)
+        x2_r = radius * np.cos(t_rung + np.pi)
+        z2_r = radius * np.sin(t_rung + np.pi)
+
+        s = np.linspace(0.0, 1.0, rung_samples)
+        s_grid, t_grid = np.meshgrid(s, t_rung)
+        s_flat = s_grid.ravel()
+        t_flat = t_grid.ravel()
+
+        x_r = np.interp(t_flat, t_rung, x1_r) * (1 - s_flat) + np.interp(t_flat, t_rung, x2_r) * s_flat
+        y_r = np.interp(t_flat, t_rung, y_rung)
+        z_r = np.interp(t_flat, t_rung, z1_r) * (1 - s_flat) + np.interp(t_flat, t_rung, z2_r) * s_flat
+
+        rungs = np.column_stack((x_r, y_r, z_r))
+        magenta = np.array([1.0, 0.2, 0.85], dtype=float)
+        pulse_r = 0.95 + 0.18 * np.sin(2.2 * t + (y_r / height) * 3 * np.pi)
+        cols_r = magenta * pulse_r[:, None]
+
+        # Assemble
+        pos = np.vstack([helix1, helix2, rungs])
+        cols = np.vstack([cols_h1, cols_h2, cols_r])
+
+        # Jitter léger pour vivant
+        pos[:, 0] += np.random.uniform(-0.4, 0.4, len(pos))
+        pos[:, 2] += np.random.uniform(-0.4, 0.4, len(pos))
+
+        # Ajuster à num si surplus ou manque
+        if len(pos) > num:
+            pos = pos[:num]
+            cols = cols[:num]
+        elif len(pos) < num:
+            deficit = num - len(pos)
+            pos = np.vstack([pos, pos[:deficit]])
+            cols = np.vstack([cols, cols[:deficit]])
+
+        # Clamp sécurité
+        cols = np.clip(cols, 0.0, 1.0)
+
+        return pos, cols
+
+    def _act_5_tree_of_life(self, num, t=0.0, audio_energy=0.5):
+        """
+        🌳 ARBRE DE VIE GÉANT LUMINEUX - Style Dubai Drone Show World Record
         
-        # Fibonacci part (Half drones)
-        n_fib = num // 2
-        indices = np.arange(n_fib)
-        phi = (1 + np.sqrt(5)) / 2
-        r = np.sqrt(indices) * 4.0
-        theta = 2 * np.pi * indices / phi**2
+        Structure: Tronc massif brun/or, branches fractales, couronne dense verte
+        Proportions: ~120m hauteur, ~100m largeur couronne
+        Répartition: 30% tronc/branches, 70% couronne (feuillage)
+        Effets: Micro-scintillement, bloom base, animation croissance
+        """
         
-        pos[:n_fib, 0] = r * np.cos(theta)
-        pos[:n_fib, 1] = 80 + r * np.sin(theta) * 0.2 # Tilted spiral
-        # Give Fibonacci a 3D volume (8m depth)
-        pos[:n_fib, 2] = -10 + r * np.sin(theta) + np.random.uniform(-4.0, 4.0, n_fib)
+        # === CACHE VÉRIFICATION ===
+        cache_key = f"tree_of_life_{num}"
+        if cache_key not in self._phase10_cache:
+            self._phase10_cache[cache_key] = self._generate_tree_of_life_structure(num)
         
-        # Sine Wave part (Half drones)
-        n_sine = num - n_fib
-        x = np.linspace(-80, 80, n_sine)
-        pos[n_fib:, 0] = x
-        pos[n_fib:, 1] = 70 + 20 * np.sin(x * 0.1)
-        # Give Sine Wave a 3D volume (8m depth)
-        pos[n_fib:, 2] = 20 * np.cos(x * 0.1) + np.random.uniform(-4.0, 4.0, n_sine)
+        base_pos, segment_ids, branch_heights = self._phase10_cache[cache_key]
+        pos = base_pos.copy()
+        
+        # === PALETTE COULEURS ===
+        # Tronc: brun/or lumineux #CF7A36 → #FFD700
+        COL_TRUNK_BASE = np.array([0.81, 0.48, 0.21])    # #CF7A36 - brun orangé
+        COL_TRUNK_GLOW = np.array([1.0, 0.84, 0.0])      # #FFD700 - or pur
+        COL_BRANCH_MID = np.array([0.72, 0.60, 0.20])    # Transition brun→vert
+        COL_LEAF_DARK = np.array([0.11, 0.70, 0.38])     # #1BB360 - vert profond
+        COL_LEAF_BRIGHT = np.array([0.56, 1.0, 0.56])    # #90FF90 - vert éclatant
+        
+        # === COLORATION PAR SEGMENT ===
+        cols = np.zeros((num, 3))
+        
+        for i in range(num):
+            seg = segment_ids[i]
+            h = branch_heights[i]  # Hauteur normalisée 0→1
+            
+            if seg == 0:  # TRONC
+                # Gradient base→haut: bloom doré à la base, brun en montant
+                bloom_factor = 1.0 - h  # Plus lumineux en bas
+                base_col = COL_TRUNK_BASE * (1 - bloom_factor * 0.5) + COL_TRUNK_GLOW * bloom_factor * 0.5
+                # Ajouter bloom intense à la base
+                bloom_intensity = np.exp(-h * 3) * 0.5
+                cols[i] = base_col + bloom_intensity
+                
+            elif seg == 1:  # BRANCHES PRINCIPALES
+                # Gradient brun → vert en montant
+                blend = min(1.0, h * 1.5)
+                cols[i] = COL_TRUNK_BASE * (1 - blend) + COL_BRANCH_MID * blend
+                
+            elif seg == 2:  # BRANCHES SECONDAIRES
+                # Transition vers le vert
+                blend = min(1.0, h * 2)
+                cols[i] = COL_BRANCH_MID * (1 - blend) + COL_LEAF_DARK * blend
+                
+            else:  # seg == 3: FEUILLAGE (Couronne)
+                # Vert éclatant avec variations
+                # Position radiale dans la couronne pour variation
+                cx, cy = 0, 85  # Centre couronne
+                dx, dy = pos[i, 0] - cx, pos[i, 1] - cy
+                radial = np.sqrt(dx*dx + dy*dy) / 50.0  # Normalisé
+                
+                # Centre plus foncé, extérieur plus brillant
+                blend = np.clip(radial, 0, 1)
+                cols[i] = COL_LEAF_DARK * (1 - blend * 0.6) + COL_LEAF_BRIGHT * (blend * 0.6)
+        
+        # === ANIMATION: SCINTILLEMENT FEUILLAGE ===
+        SHIMMER_FREQ = 4.0  # Hz
+        SHIMMER_AMP = 0.15
+        
+        for i in range(num):
+            if segment_ids[i] == 3:  # Feuillage uniquement
+                # Phase unique par drone pour désynchronisation
+                phase_offset = (pos[i, 0] * 0.1 + pos[i, 1] * 0.07) % (2 * np.pi)
+                shimmer = 1.0 + SHIMMER_AMP * np.sin(2 * np.pi * SHIMMER_FREQ * t + phase_offset)
+                cols[i] *= shimmer
+        
+        # === ANIMATION: RESPIRATION GLOBALE (audio-réactive) ===
+        breath = 1.0 + 0.1 * audio_energy * np.sin(t * 2.0)
+        cols *= breath
+        
+        # === ANIMATION: VENT DOUX SUR COURONNE ===
+        WIND_FREQ = 0.5
+        WIND_AMP = 2.0
+        
+        for i in range(num):
+            if segment_ids[i] == 3:  # Feuillage
+                # Déplacement horizontal ondulant
+                wave_phase = pos[i, 0] * 0.03 + pos[i, 1] * 0.02
+                wind_offset = WIND_AMP * np.sin(2 * np.pi * WIND_FREQ * t + wave_phase)
+                pos[i, 2] += wind_offset  # Mouvement en Z (profondeur)
+        
+        # === ANIMATION: CROISSANCE (pour les 5 premières secondes) ===
+        if t < 5.0:
+            growth_progress = t / 5.0
+            # Ease-in-out cubic
+            growth = growth_progress * growth_progress * (3.0 - 2.0 * growth_progress)
+            
+            # Révéler progressivement du bas vers le haut
+            for i in range(num):
+                h = branch_heights[i]
+                # Si la hauteur normalisée dépasse la progression, masquer
+                if h > growth:
+                    # Réduire la visibilité (couleur très sombre)
+                    fade = max(0, 1.0 - (h - growth) * 5)
+                    cols[i] *= fade
+                    # Aussi comprimer vers la base
+                    pos[i, 1] = pos[i, 1] * (growth * 0.5 + 0.5)
+        
+        # === CLAMP FINAL ===
+        cols = np.clip(cols, 0.0, 1.5)  # Permettre léger HDR pour bloom
         
         return pos, cols
+    
+    def _generate_tree_of_life_structure(self, num):
+        """
+        Génère la structure statique de l'arbre:
+        - Tronc cylindrique massif
+        - Branches fractales en éventail
+        - Couronne dense semi-elliptique
+        
+        Returns: (positions, segment_ids, normalized_heights)
+        """
+        
+        # === DIMENSIONS CIBLES ===
+        TREE_HEIGHT = 130.0      # Hauteur totale ~130m
+        TRUNK_HEIGHT = 55.0      # Tronc jusqu'à y=60
+        TRUNK_RADIUS = 10.0      # Rayon tronc base (plus épais)
+        TRUNK_RADIUS_TOP = 5.0   # Rayon tronc haut
+        CROWN_RADIUS_X = 60.0    # Largeur couronne ~120m total
+        CROWN_RADIUS_Y = 55.0    # Hauteur couronne (ellipse plus grande)
+        CROWN_CENTER_Y = 95.0    # Centre vertical couronne plus haut
+        
+        # === RÉPARTITION DRONES ===
+        n_trunk = int(num * 0.12)        # 12% tronc
+        n_branches = int(num * 0.18)     # 18% branches
+        n_crown = num - n_trunk - n_branches  # 70% couronne
+        
+        pos = np.zeros((num, 3))
+        segment_ids = np.zeros(num, dtype=int)  # 0=tronc, 1=branches1, 2=branches2, 3=feuillage
+        heights = np.zeros(num)  # Hauteur normalisée pour coloration
+        
+        idx = 0
+        
+        # === 1. TRONC CYLINDRIQUE ===
+        trunk_layers = 20
+        drones_per_layer = n_trunk // trunk_layers
+        
+        for layer in range(trunk_layers):
+            h_frac = layer / (trunk_layers - 1)
+            y = h_frac * TRUNK_HEIGHT + 5.0  # Base à y=5
+            
+            # Rayon diminue vers le haut
+            r = TRUNK_RADIUS * (1 - h_frac * 0.5)
+            
+            for j in range(drones_per_layer):
+                if idx >= num:
+                    break
+                theta = 2 * np.pi * j / drones_per_layer
+                x = r * np.cos(theta)
+                z = r * np.sin(theta)
+                
+                pos[idx] = [x, y, z]
+                segment_ids[idx] = 0
+                heights[idx] = h_frac * 0.4  # Normaliser pour palette (tronc = 0-0.4)
+                idx += 1
+        
+        # === 2. BRANCHES PRINCIPALES (Fractales niveau 1) ===
+        n_main_branches = 8
+        branch1_per_branch = n_branches // (n_main_branches * 2)
+        
+        for b in range(n_main_branches):
+            theta_base = 2 * np.pi * b / n_main_branches
+            
+            # Point de départ: haut du tronc
+            start_y = TRUNK_HEIGHT + 5
+            start_x = TRUNK_RADIUS_TOP * 0.8 * np.cos(theta_base)
+            start_z = TRUNK_RADIUS_TOP * 0.8 * np.sin(theta_base)
+            
+            # Point d'arrivée: vers l'extérieur et le haut
+            end_x = CROWN_RADIUS_X * 0.6 * np.cos(theta_base)
+            end_y = CROWN_CENTER_Y - 10
+            end_z = CROWN_RADIUS_X * 0.4 * np.sin(theta_base)
+            
+            # Interpoler le long de la branche
+            for j in range(branch1_per_branch):
+                if idx >= num:
+                    break
+                t_branch = j / max(1, branch1_per_branch - 1)
+                
+                # Courbe légèrement courbée (Bézier quadratique simplifiée)
+                mid_x = (start_x + end_x) * 0.5 + 3 * np.cos(theta_base + 0.5)
+                mid_y = (start_y + end_y) * 0.5 + 8
+                mid_z = (start_z + end_z) * 0.5
+                
+                # Interpolation quadratique
+                x = (1-t_branch)**2 * start_x + 2*(1-t_branch)*t_branch * mid_x + t_branch**2 * end_x
+                y = (1-t_branch)**2 * start_y + 2*(1-t_branch)*t_branch * mid_y + t_branch**2 * end_y
+                z = (1-t_branch)**2 * start_z + 2*(1-t_branch)*t_branch * mid_z + t_branch**2 * end_z
+                
+                # Épaisseur de branche (plusieurs drones en section)
+                thickness = 2.0 * (1 - t_branch * 0.7)
+                offset_x = np.random.uniform(-thickness, thickness)
+                offset_z = np.random.uniform(-thickness, thickness)
+                
+                pos[idx] = [x + offset_x, y, z + offset_z]
+                segment_ids[idx] = 1
+                heights[idx] = 0.4 + t_branch * 0.2  # 0.4-0.6
+                idx += 1
+        
+        # === 3. BRANCHES SECONDAIRES ===
+        n_sub_branches = 16
+        branch2_per_branch = n_branches // (n_main_branches * 2) // 2
+        
+        for b in range(n_sub_branches):
+            theta_base = 2 * np.pi * b / n_sub_branches + 0.2
+            
+            # Partent des branches principales
+            start_y = TRUNK_HEIGHT + 15 + np.random.uniform(0, 10)
+            start_x = CROWN_RADIUS_X * 0.3 * np.cos(theta_base)
+            start_z = CROWN_RADIUS_X * 0.3 * np.sin(theta_base)
+            
+            end_x = CROWN_RADIUS_X * 0.75 * np.cos(theta_base)
+            end_y = CROWN_CENTER_Y + np.random.uniform(-5, 5)
+            end_z = CROWN_RADIUS_X * 0.5 * np.sin(theta_base)
+            
+            for j in range(branch2_per_branch):
+                if idx >= num:
+                    break
+                t_branch = j / max(1, branch2_per_branch - 1)
+                
+                x = start_x + t_branch * (end_x - start_x)
+                y = start_y + t_branch * (end_y - start_y)
+                z = start_z + t_branch * (end_z - start_z)
+                
+                thickness = 1.0 * (1 - t_branch * 0.5)
+                pos[idx] = [x + np.random.uniform(-thickness, thickness), 
+                           y, 
+                           z + np.random.uniform(-thickness, thickness)]
+                segment_ids[idx] = 2
+                heights[idx] = 0.6 + t_branch * 0.15  # 0.6-0.75
+                idx += 1
+        
+        # === 4. COURONNE (FEUILLAGE) - 70% des drones ===
+        # Distribution dense sur dôme semi-elliptique "nuage arrondi"
+        
+        remaining = num - idx
+        
+        # Méthode: Distribution Fibonacci sur surface de dôme 3D
+        golden_angle = np.pi * (3 - np.sqrt(5))  # ~137.5°
+        
+        for i in range(remaining):
+            if idx >= num:
+                break
+            
+            # Spiral Fibonacci pour distribution uniforme sur dôme
+            t_norm = i / remaining
+            
+            # Distribution en couches concentriques avec plus de drones au centre
+            # Utiliser une distribution biaisée vers le centre (plus dense)
+            r_base = np.sqrt(t_norm) * 0.95  # Légèrement moins que 1 pour bords doux
+            theta = i * golden_angle
+            
+            # Coordonnées sur ellipse horizontale
+            local_x = r_base * CROWN_RADIUS_X * np.cos(theta)
+            
+            # Hauteur: dôme parabolique - plus haut au centre
+            # y = y_max - k * r^2 (paraboloïde inversé)
+            height_factor = 1.0 - r_base * r_base  # 1 au centre, 0 au bord
+            y_offset = CROWN_RADIUS_Y * 0.7 * height_factor
+            
+            # Ajouter variation verticale pour volume "nuageux"
+            layer_variation = np.sin(theta * 3 + t_norm * 10) * 5
+            
+            y_global = CROWN_CENTER_Y + y_offset + layer_variation
+            
+            # Profondeur Z pour volume 3D sphérique
+            # Plus de profondeur au centre, moins aux bords
+            z_max = 20.0 * np.sqrt(max(0, 1 - r_base * r_base))
+            z_depth = z_max * np.sin(theta * 0.7 + i * 0.1)
+            z_random = np.random.uniform(-4, 4)
+            
+            # Ajouter irrégularités naturelles (feuillage organique)
+            noise_x = np.random.uniform(-4, 4)
+            noise_y = np.random.uniform(-3, 3)
+            
+            pos[idx] = [local_x + noise_x, y_global + noise_y, z_depth + z_random]
+            segment_ids[idx] = 3
+            heights[idx] = 0.75 + 0.25 * height_factor  # Plus "haut" = plus au centre
+            idx += 1
+        
+        return pos, segment_ids, heights
 
     def _act_5_wildlife(self, num):
         # African Soul (Wildlife Silhouettes)
@@ -1072,164 +1470,392 @@ class FormationLibrary:
         return animated_pos, cols
 
     def _act_9_eagle(self, num, t=0.0):
-        # "L'ENVOL DE L'AIGLE" (Morphing Fluide)
-        # Map of Niger -> Morph -> Giant Eagle Flying
+        """
+        🦅 AIGLE VIVANT EN VOL - Style Dubai/Shanghai Drone Show
         
-        # 1. Generate Keyframes (Cached)
-        if not hasattr(self, '_eagle_cache'):
-             self._eagle_cache = {}
+        Structure anatomique détaillée:
+        - Ailes déployées avec plumes primaires/secondaires visibles
+        - Tête blanche distinctive avec bec jaune
+        - Corps bronze/marron avec détails musculaires
+        - Queue évasée avec plumes marquées
+        - Pattes avec serres visibles
         
-        cache_key = num
-        if cache_key not in self._eagle_cache:
-             # --- SHAPE A: NIGER MAP ---
-             # Use the polygon boundary
-             def is_in_map(lx, ly):
-                 # Map coords are roughly lat 11-23, lon 0-16
-                 # We map this to our scene coords
-                 # Center approx (8, 17)
-                 # Scale factor ~ 10
-                 
-                 # Transform scene (lx, ly) back to Geo (lon, lat)
-                 # lx = (lon - 8) * 10  => lon = lx/10 + 8
-                 # ly = (lat - 17) * 10 => lat = ly/10 + 17
-                 
-                 lon = lx / 12.0 + 9.0
-                 lat = ly / 12.0 + 17.0
-                 
-                 return self._is_inside_polygon(lon, lat, self.niger_coords)
-
-             pos_map, _ = self._fill_shape_uniformly(is_in_map, (-80, 80, -60, 60), num, center=(0, 60, 0), z_depth=5.0)
-             
-             # --- SHAPE B: EAGLE ---
-             def is_in_eagle(lx, ly):
-                 # Eagle facing right
-                 # Body: Ellipse
-                 if (lx/10)**2 + (ly/25)**2 <= 1.0: return True
-                 # Head: Circle at top
-                 if (lx/6)**2 + ((ly-25)/6)**2 <= 1.0: return True
-                 # Beak
-                 if 0 <= lx <= 10 and 22 <= ly <= 28 and (ly - 28) < -0.5*lx: return True
-                 # Wings (Spread)
-                 # Modeled as triangles/curves extending from body
-                 # Left Wing
-                 if -70 <= lx <= -5:
-                     # Upper edge curve
-                     uy = 15 + 20 * np.cos((lx+5)*0.05)
-                     # Lower edge
-                     dy = -10 + 10 * np.cos((lx+5)*0.05)
-                     if dy <= ly <= uy: return True
-                 # Right Wing
-                 if 5 <= lx <= 70:
-                     uy = 15 + 20 * np.cos((lx-5)*0.05)
-                     dy = -10 + 10 * np.cos((lx-5)*0.05)
-                     if dy <= ly <= uy: return True
-                 # Tail (Fan)
-                 if -15 <= lx <= 15 and -40 <= ly <= -20:
-                     if ly >= -40 + abs(lx): return True
-                     
-                 return False
-
-             pos_eagle, _ = self._fill_shape_uniformly(is_in_eagle, (-80, 80, -50, 50), num, center=(0, 70, 0), z_depth=8.0)
-             
-             # Sort both arrays by Y then X to minimize travel distance (simple heuristic)
-             # This makes the morph cleaner (particles don't cross over too much)
-             # We use a structured sort key
-             
-             # Sort Map
-             keys_map = pos_map[:, 1] * 1000 + pos_map[:, 0]
-             idx_map = np.argsort(keys_map)
-             pos_map = pos_map[idx_map]
-             
-             # Sort Eagle
-             keys_eagle = pos_eagle[:, 1] * 1000 + pos_eagle[:, 0]
-             idx_eagle = np.argsort(keys_eagle)
-             pos_eagle = pos_eagle[idx_eagle]
-             
-             self._eagle_cache[cache_key] = (pos_map, pos_eagle)
+        Animation:
+        - Battement d'ailes réaliste
+        - Micro-mouvements de tête
+        - Queue ondulante
+        - Hover global
+        """
         
-        pos_map, pos_eagle = self._eagle_cache[cache_key]
+        # === CACHE STRUCTURE ===
+        cache_key = f"eagle_vivant_{num}"
+        if cache_key not in self._phase10_cache:
+            self._phase10_cache[cache_key] = self._generate_eagle_structure(num)
         
-        # 2. Animation Logic
-        # Sequence:
-        # 0s - 3s: Map (Breathing)
-        # 3s - 8s: Morphing (Liquefaction)
-        # 8s+: Eagle Flying
+        base_pos, segment_ids, local_coords = self._phase10_cache[cache_key]
+        pos = base_pos.copy()
         
-        morph_start = 3.0
-        morph_dur = 5.0
-        morph_end = morph_start + morph_dur
+        # === PALETTE COULEURS RÉALISTES ===
+        COL_BRONZE_DARK = np.array([0.27, 0.13, 0.05])    # #452209 - plumes foncées
+        COL_BRONZE_MID = np.array([0.63, 0.41, 0.17])     # #A1692C - corps bronze
+        COL_BRONZE_LIGHT = np.array([0.78, 0.55, 0.25])   # Reflets dorés
+        COL_WHITE_HEAD = np.array([1.0, 1.0, 1.0])        # Tête blanche
+        COL_BEAK_YELLOW = np.array([1.0, 0.78, 0.0])      # Bec jaune/or
+        COL_EYE_GOLD = np.array([1.0, 0.85, 0.2])         # Œil doré
         
-        current_pos = np.zeros_like(pos_map)
-        cols = np.tile(self.colors["orange_niger"], (num, 1)) # Map Color
+        # === COLORATION PAR SEGMENT ===
+        # Segments: 0=corps, 1=aile_gauche, 2=aile_droite, 3=tête, 4=bec, 5=queue, 6=pattes
+        cols = np.zeros((num, 3))
         
-        if t < morph_start:
-            # MAP STATE
-            # Breathing
-            breath = 0.05 * np.sin(t * 2.0)
-            current_pos = pos_map * (1.0 + breath)
-            # Color: Orange Map
-            cols = np.tile(self.colors["orange_niger"], (num, 1))
+        for i in range(num):
+            seg = segment_ids[i]
+            lx, ly = local_coords[i, 0], local_coords[i, 1]
             
-        elif t < morph_end:
-            # MORPH STATE
-            prog = (t - morph_start) / morph_dur
-            # Ease in-out
-            k = prog * prog * (3 - 2 * prog)
-            
-            # Interpolate positions
-            current_pos = pos_map * (1-k) + pos_eagle * k
-            
-            # Interpolate Colors (Orange -> White/Gold Eagle)
-            col_map = np.array(self.colors["orange_niger"])
-            col_eagle = np.array(self.colors["blanc_pure"])
-            
-            # Dynamic mix
-            mix_cols = col_map * (1-k) + col_eagle * k
-            cols[:] = mix_cols
-            
-            # Add "Liquefaction" noise during transit
-            noise_amp = 5.0 * np.sin(prog * np.pi) # Max noise in middle
-            noise = np.random.uniform(-noise_amp, noise_amp, current_pos.shape)
-            current_pos += noise
-            
-        else:
-            # EAGLE STATE
-            fly_t = t - morph_end
-            
-            # Flapping Wings
-            # Wings are roughly where |x| > 10
-            # Flap freq
-            freq = 4.0
-            flap = np.sin(fly_t * freq)
-            
-            current_pos = pos_eagle.copy()
-            
-            for i in range(num):
-                x, y, z = current_pos[i]
-                lx = x # Local x relative to center 0
+            if seg == 0:  # CORPS
+                # Gradient bronze avec effet musculaire
+                blend = np.clip((ly + 20) / 40, 0, 1)
+                cols[i] = COL_BRONZE_DARK * (1 - blend) + COL_BRONZE_MID * blend
                 
-                if abs(lx) > 10: # Wing area
-                    # Flap amplitude increases with distance from body
-                    dist_factor = (abs(lx) - 10) / 60.0
-                    angle = 0.5 * flap * dist_factor
+            elif seg in [1, 2]:  # AILES
+                # Dégradé du corps vers les extrémités
+                dist_from_body = abs(lx) / 70.0
+                # Plumes primaires (extrémités) plus foncées
+                if dist_from_body > 0.7:
+                    cols[i] = COL_BRONZE_DARK * 0.8
+                elif dist_from_body > 0.4:
+                    cols[i] = COL_BRONZE_MID
+                else:
+                    cols[i] = COL_BRONZE_LIGHT
                     
-                    # Rotate point around shoulder (approx +/- 10, 0)
-                    # Simple Z-rotation approximation for flapping
-                    # y' = y + ...
-                    current_pos[i, 1] += dist_factor * 20.0 * flap
-                    current_pos[i, 2] += dist_factor * 10.0 * np.cos(fly_t * freq) # Slight twisting
+            elif seg == 3:  # TÊTE (blanche)
+                cols[i] = COL_WHITE_HEAD
+                
+            elif seg == 4:  # BEC
+                cols[i] = COL_BEAK_YELLOW
+                
+            elif seg == 5:  # QUEUE
+                # Dégradé bronze foncé
+                cols[i] = COL_BRONZE_DARK * 0.9 + COL_BRONZE_MID * 0.1
+                
+            elif seg == 6:  # PATTES
+                cols[i] = COL_BEAK_YELLOW * 0.9
+        
+        # === ANIMATION: BATTEMENT D'AILES ===
+        FLAP_FREQ = 1.2  # Hz - battement lent majestueux
+        FLAP_AMP = 15.0  # Amplitude verticale
+        FLAP_TWIST = 8.0  # Torsion en Z
+        
+        flap_phase = 2 * np.pi * FLAP_FREQ * t
+        flap_wave = np.sin(flap_phase)
+        flap_wave_delayed = np.sin(flap_phase - 0.3)  # Retard pour effet élastique
+        
+        for i in range(num):
+            seg = segment_ids[i]
+            lx = local_coords[i, 0]
             
-            # Global Hover
-            current_pos[:, 1] += 2.0 * np.sin(fly_t * 1.0)
+            if seg in [1, 2]:  # Ailes
+                # Distance normalisée depuis le corps
+                dist_factor = (abs(lx) - 10) / 60.0
+                dist_factor = np.clip(dist_factor, 0, 1)
+                
+                # Mouvement vertical (battement)
+                # Utiliser retard pour effet élastique (extrémités suivent)
+                wave_to_use = flap_wave * (1 - dist_factor * 0.3) + flap_wave_delayed * (dist_factor * 0.3)
+                y_offset = FLAP_AMP * dist_factor * wave_to_use
+                pos[i, 1] += y_offset
+                
+                # Torsion en Z (rotation des plumes)
+                z_twist = FLAP_TWIST * dist_factor * np.cos(flap_phase)
+                pos[i, 2] += z_twist
+                
+                # Légère compression horizontale lors du battement vers le bas
+                if flap_wave < 0:
+                    x_compress = 1.0 - 0.05 * abs(flap_wave) * dist_factor
+                    pos[i, 0] *= x_compress
+        
+        # === ANIMATION: MICRO-MOUVEMENTS TÊTE ===
+        HEAD_FREQ = 0.4  # Hz - lent et alerte
+        HEAD_AMP_X = 2.0  # Rotation gauche/droite
+        HEAD_AMP_Y = 1.0  # Inclinaison
+        
+        head_rotation = HEAD_AMP_X * np.sin(2 * np.pi * HEAD_FREQ * t)
+        head_tilt = HEAD_AMP_Y * np.sin(2 * np.pi * HEAD_FREQ * 0.7 * t + 1.0)
+        
+        for i in range(num):
+            if segment_ids[i] in [3, 4]:  # Tête et bec
+                # Rotation horizontale
+                pos[i, 0] += head_rotation
+                # Inclinaison
+                pos[i, 1] += head_tilt
+        
+        # === ANIMATION: QUEUE ONDULANTE ===
+        TAIL_FREQ = 0.8
+        TAIL_AMP = 3.0
+        
+        for i in range(num):
+            if segment_ids[i] == 5:  # Queue
+                ly = local_coords[i, 1]
+                # Plus d'ondulation vers l'extrémité
+                tail_factor = (abs(ly) - 25) / 20.0
+                tail_factor = np.clip(tail_factor, 0, 1)
+                tail_wave = TAIL_AMP * tail_factor * np.sin(2 * np.pi * TAIL_FREQ * t + ly * 0.1)
+                pos[i, 2] += tail_wave
+        
+        # === ANIMATION: PATTES (ouverture/fermeture serres) ===
+        CLAW_FREQ = 0.6
+        claw_state = 0.5 + 0.5 * np.sin(2 * np.pi * CLAW_FREQ * t)
+        
+        for i in range(num):
+            if segment_ids[i] == 6:  # Pattes
+                lx = local_coords[i, 0]
+                # Écarter/rapprocher les serres
+                sign = 1 if lx > 0 else -1
+                pos[i, 0] += sign * 2.0 * claw_state
+        
+        # === ANIMATION: HOVER GLOBAL ===
+        hover = 3.0 * np.sin(t * 0.8)
+        pos[:, 1] += hover
+        
+        # === ANIMATION: COMPRESSION CORPS (effet musculaire) ===
+        body_compress = 1.0 + 0.03 * flap_wave
+        for i in range(num):
+            if segment_ids[i] == 0:  # Corps
+                pos[i, 1] *= body_compress
+        
+        # === EFFETS LUMINEUX: SCINTILLEMENT PLUMES ===
+        SHIMMER_FREQ = 6.0
+        SHIMMER_AMP = 0.12
+        
+        for i in range(num):
+            if segment_ids[i] in [1, 2]:  # Ailes
+                phase_offset = local_coords[i, 0] * 0.05 + local_coords[i, 1] * 0.03
+                shimmer = 1.0 + SHIMMER_AMP * np.sin(2 * np.pi * SHIMMER_FREQ * t + phase_offset)
+                cols[i] *= shimmer
+        
+        # === BLOOM SUR TÊTE BLANCHE ET YEUX ===
+        for i in range(num):
+            if segment_ids[i] == 3:  # Tête
+                # Léger bloom constant
+                cols[i] *= 1.15
+            elif segment_ids[i] == 4:  # Bec
+                cols[i] *= 1.1
+        
+        # === CLAMP FINAL ===
+        cols = np.clip(cols, 0.0, 1.5)
+        
+        return pos, cols
+    
+    def _generate_eagle_structure(self, num):
+        """
+        Génère la structure anatomique détaillée de l'aigle:
+        - Corps elliptique avec volume
+        - Ailes avec détails de plumes (primaires, secondaires, tertiaires)
+        - Tête ronde avec collerette
+        - Bec pointu
+        - Queue évasée
+        - Pattes avec serres
+        
+        Returns: (positions, segment_ids, local_coords)
+        """
+        
+        # === DIMENSIONS ===
+        WINGSPAN = 140.0          # Envergure totale
+        BODY_LENGTH = 35.0        # Longueur corps
+        BODY_WIDTH = 12.0         # Largeur corps
+        HEAD_RADIUS = 8.0         # Rayon tête
+        HEAD_Y = 28.0             # Position Y tête
+        TAIL_LENGTH = 25.0        # Longueur queue
+        
+        # === RÉPARTITION DRONES ===
+        n_body = int(num * 0.12)
+        n_wings = int(num * 0.55)  # 55% pour les ailes (détail important)
+        n_head = int(num * 0.10)
+        n_beak = int(num * 0.03)
+        n_tail = int(num * 0.12)
+        n_legs = int(num * 0.08)
+        
+        # Ajuster pour total exact
+        total_assigned = n_body + n_wings + n_head + n_beak + n_tail + n_legs
+        n_wings += (num - total_assigned)
+        
+        pos = np.zeros((num, 3))
+        segment_ids = np.zeros(num, dtype=int)
+        local_coords = np.zeros((num, 2))
+        
+        idx = 0
+        CENTER_Y = 60.0  # Hauteur de base
+        
+        # === 1. CORPS (ellipsoïde) ===
+        for i in range(n_body):
+            if idx >= num:
+                break
+            # Distribution sur ellipsoïde
+            u = np.random.uniform(0, 2 * np.pi)
+            v = np.random.uniform(-1, 1)
             
-            # Eagle Colors (White body, Gold tips)
-            cols = np.tile(self.colors["blanc_pure"], (num, 1))
-            # Gold tips for wings
-            for i in range(num):
-                if abs(current_pos[i, 0]) > 40:
-                    cols[i] = self.colors["soleil_or"]
-
-        return current_pos, cols
+            x = BODY_WIDTH * 0.5 * np.sqrt(1 - v*v) * np.cos(u)
+            y = BODY_LENGTH * 0.5 * v
+            z = BODY_WIDTH * 0.3 * np.sqrt(1 - v*v) * np.sin(u)
+            
+            pos[idx] = [x, y + CENTER_Y, z]
+            segment_ids[idx] = 0
+            local_coords[idx] = [x, y]
+            idx += 1
+        
+        # === 2. AILES (avec détails de plumes) ===
+        n_per_wing = n_wings // 2
+        
+        for wing_side in [-1, 1]:  # Gauche (-1) et Droite (+1)
+            seg_id = 1 if wing_side < 0 else 2
+            
+            # Structure de l'aile: plusieurs couches de plumes
+            # Primaires (extrémité), Secondaires (milieu), Tertiaires (proche corps)
+            
+            for i in range(n_per_wing):
+                if idx >= num:
+                    break
+                
+                # Paramétrage le long de l'aile
+                t_along = i / n_per_wing  # 0 = corps, 1 = extrémité
+                
+                # Position X (distance du corps)
+                x_base = 10 + t_along * 60  # De 10 à 70
+                x = wing_side * x_base
+                
+                # Profil de l'aile (forme courbe)
+                # Bord d'attaque (haut) et bord de fuite (bas)
+                wing_chord = 25 * (1 - t_along * 0.6)  # Corde diminue vers l'extrémité
+                
+                # Position Y dans la corde de l'aile
+                y_in_chord = np.random.uniform(-0.3, 0.7)  # Plus de drones vers le haut
+                y_offset = y_in_chord * wing_chord
+                
+                # Courbure naturelle de l'aile
+                curve = -5 * t_along * t_along  # Légèrement incurvée vers le bas
+                
+                y = CENTER_Y + y_offset + curve
+                
+                # Profondeur Z pour volume
+                z = np.random.uniform(-3, 3) * (1 - t_along * 0.5)
+                
+                # Détail plumes: ondulation sur le bord de fuite
+                if y_in_chord < -0.1:  # Bord de fuite (plumes visibles)
+                    # Créer des "dents" pour les plumes primaires
+                    feather_phase = x_base * 0.15
+                    feather_wave = 3 * np.sin(feather_phase)
+                    y += feather_wave * (1 - t_along)
+                
+                pos[idx] = [x, y, z]
+                segment_ids[idx] = seg_id
+                local_coords[idx] = [x, y - CENTER_Y]
+                idx += 1
+        
+        # === 3. TÊTE (sphère + collerette) ===
+        for i in range(n_head):
+            if idx >= num:
+                break
+            
+            # Distribution sur sphère
+            u = np.random.uniform(0, 2 * np.pi)
+            v = np.random.uniform(-0.3, 1)  # Plus de drones vers le haut/avant
+            
+            r = HEAD_RADIUS * (0.8 + 0.2 * np.random.random())  # Légère variation
+            
+            x = r * np.sqrt(1 - v*v) * np.cos(u) * 0.9
+            y = r * v
+            z = r * np.sqrt(1 - v*v) * np.sin(u) * 0.7
+            
+            # Collerette (plumes autour du cou) - élargir la base
+            if y < -HEAD_RADIUS * 0.3:
+                collar_expand = 1.3
+                x *= collar_expand
+                z *= collar_expand
+            
+            pos[idx] = [x, y + HEAD_Y + CENTER_Y, z]
+            segment_ids[idx] = 3
+            local_coords[idx] = [x, y + HEAD_Y]
+            idx += 1
+        
+        # === 4. BEC ===
+        for i in range(n_beak):
+            if idx >= num:
+                break
+            
+            # Bec pointu vers l'avant
+            t_beak = i / max(1, n_beak - 1)
+            
+            x = 8 + t_beak * 6  # Pointe vers l'avant
+            y = HEAD_Y + CENTER_Y - 2 - t_beak * 3  # Légèrement incliné vers le bas
+            z = np.random.uniform(-1, 1) * (1 - t_beak)  # Plus fin vers la pointe
+            
+            pos[idx] = [x, y, z]
+            segment_ids[idx] = 4
+            local_coords[idx] = [x, y - CENTER_Y]
+            idx += 1
+        
+        # === 5. QUEUE (éventail) ===
+        for i in range(n_tail):
+            if idx >= num:
+                break
+            
+            # Distribution en éventail
+            angle = np.random.uniform(-0.6, 0.6)  # Angle d'éventail
+            t_tail = np.random.uniform(0, 1)  # Distance du corps
+            
+            x = np.sin(angle) * TAIL_LENGTH * t_tail
+            y = CENTER_Y - 20 - np.cos(angle) * TAIL_LENGTH * t_tail
+            z = np.random.uniform(-2, 2)
+            
+            # Structure des plumes de queue
+            feather_idx = int(abs(angle) / 0.15)
+            if t_tail > 0.7:  # Extrémité des plumes
+                y -= 2 * np.sin(feather_idx * 1.5)
+            
+            pos[idx] = [x, y, z]
+            segment_ids[idx] = 5
+            local_coords[idx] = [x, y - CENTER_Y]
+            idx += 1
+        
+        # === 6. PATTES ET SERRES ===
+        for i in range(n_legs):
+            if idx >= num:
+                break
+            
+            # Deux pattes, chacune avec serres
+            leg_side = 1 if i < n_legs // 2 else -1
+            leg_idx = i % (n_legs // 2)
+            t_leg = leg_idx / max(1, n_legs // 2 - 1)
+            
+            # Jambe principale
+            if t_leg < 0.5:
+                # Partie haute (cuisse)
+                x = leg_side * 4
+                y = CENTER_Y - 15 - t_leg * 20
+                z = 3 + t_leg * 5
+            else:
+                # Serres (3 doigts en avant, 1 en arrière)
+                claw_t = (t_leg - 0.5) * 2
+                claw_idx = int(claw_t * 4) % 4
+                
+                base_x = leg_side * 4
+                base_y = CENTER_Y - 35
+                
+                if claw_idx < 3:  # Doigts avant
+                    angle = (claw_idx - 1) * 0.4
+                    x = base_x + np.sin(angle) * 5 * claw_t
+                    y = base_y - 3 * claw_t
+                    z = 8 + np.cos(angle) * 3 * claw_t
+                else:  # Doigt arrière
+                    x = base_x
+                    y = base_y - 2 * claw_t
+                    z = 8 - 4 * claw_t
+            
+            pos[idx] = [x, y, z]
+            segment_ids[idx] = 6
+            local_coords[idx] = [x, y - CENTER_Y]
+            idx += 1
+        
+        return pos, segment_ids, local_coords
 
     def _phase_9_agadez(self, num):
         # "La Grande Mosquée d'Agadez" - Solid Image Rendering
@@ -1262,115 +1888,978 @@ class FormationLibrary:
         return pos, cols
 
     def _phase_10_touareg(self, num, t=0.0):
-        # "Touareg avec son chameau" - Animated & Living
-        # Narrative silhouette with walking animation
+        """
+        � DROMADAIRE LUMINEUX EN MARCHE – SPÉCIFICATION COMPLÈTE
         
-        # 1. Define the static shape WITH LEGS
-        def is_in_scene(lx, ly):
-            # Coordinate system: lx increases to right.
-            # Camel Center ~ 15. Touareg Center ~ -25.
-            
-            # --- CAMEL ---
-            # Body (Ellipse)
-            if ((lx - 15)/15)**2 + ((ly - 30)/10)**2 <= 1.0: return True
-            # Hump
-            if ((lx - 15)/7)**2 + ((ly - 42)/5)**2 <= 1.0: return True
-            # Head (Circle at -5, 50 relative to camel center? No, let's place it at x=0, y=50)
-            if ((lx - 0)/4)**2 + ((ly - 50)/4)**2 <= 1.0: return True 
-            # Neck (Connecting Body to Head)
-            # Simple check: between x=0 and x=10, y between 30 and 50
-            if 0 <= lx <= 10 and 30 <= ly <= 50:
-                 if abs(ly - (50 - (lx)*1.5)) < 3.5: return True
+        ═══════════════════════════════════════════════════════════════
+        IDENTIFICATION: DROMADAIRE (1 bosse unique) – profil latéral
+        ═══════════════════════════════════════════════════════════════
+        
+        📋 RÉPARTITION OPTIMISÉE:
+        ─────────────────────────
+        • Contour principal : 40% des drones
+        • Remplissage intérieur : 40% des drones  
+        • Points clés (œil, museau, articulations) : 20% des drones
+        
+        🔬 PROPORTIONS ANATOMIQUES:
+        ───────────────────────────
+        • Hauteur totale ≈ 5-6× hauteur des pattes
+        • Longueur corps ≈ 2× hauteur au garrot
+        • Bosse haute, centrée sur le dos
+        • Cou long et gracieusement arqué
+        • Tête petite, museau allongé
+        
+        🔄 ANIMATION 4 PHASES (cycle = 2.0s):
+        ─────────────────────────────────────
+        Phase 1 (0-0.5s): Patte avant droite avance, arrière-gauche poussée
+        Phase 2 (0.5-1s): Transfert poids, soulèvement avant gauche
+        Phase 3 (1-1.5s): Patte arrière gauche avance, avant-gauche levé
+        Phase 4 (1.5-2s): Retour position neutre
+        
+        🎨 PALETTE COULEURS:
+        ────────────────────
+        • Corps principal: Blanc pur (6000K)
+        • Zones inférieures: Dégradé → orange chaud (3500K)
+        • Contours: Bleu froid (7000K) accent
+        • Points clés: Blanc intense + bloom
+        
+        💡 MOUVEMENTS SECONDAIRES:
+        ──────────────────────────
+        • Bosse: oscillation verticale ±3°
+        • Cou: ondulation horizontale
+        • Queue: balancement à contre-temps
+        • Tête: hochement rythmique
+        
+        Dimensions: ~150m (L) × 90m (H)
+        ═══════════════════════════════════════════════════════════════
+        """
 
-            # Legs (Static definition for generation)
-            # Front Leg (at x=5)
-            if abs(lx - 5) < 3.0 and 0 <= ly <= 25: return True
-            # Back Leg (at x=25)
-            if abs(lx - 25) < 3.0 and 0 <= ly <= 25: return True
+        # === CONSTRUCTION DU MESH (UNE SEULE FOIS) ===
+        if num not in self._phase10_cache:
+            rng = np.random.default_rng(42 + num)
+            from scipy.interpolate import splprep, splev
+            from matplotlib.path import Path
 
-            # --- TOUAREG ---
-            # Body
-            if abs(lx + 25) < 6 and 15 <= ly <= 45: return True
-            # Head/Turban
-            if ((lx + 25)/5)**2 + ((ly - 50)/6)**2 <= 1.0: return True
-            # Legs
-            if abs(lx + 25) < 5 and 0 <= ly <= 15: return True
+            # ════════════════════════════════════════════════════════════
+            # 1. CONTOUR MAÎTRE SVG – 120+ points de contrôle
+            # ════════════════════════════════════════════════════════════
+            # Profil strict, sens horaire depuis queue
+            # Échelle: ~140m × 80m
             
-            return False
-
-        # 2. Generate Points (Cached to avoid jitter)
-        if not hasattr(self, '_touareg_cache'):
-             self._touareg_cache = {}
-        
-        cache_key = num
-        if cache_key not in self._touareg_cache:
-             # Generate base shape
-             pos, cols = self._fill_shape_uniformly(is_in_scene, (-40, 50, 0, 60), num, center=(0, 25, 0), z_depth=10.0)
-             
-             # Apply Colors
-             new_cols = np.zeros_like(cols)
-             for i in range(num):
-                 x = pos[i, 0]
-                 if x < -10: # Touareg side (Left)
-                     # Indigo / Blue Nuit for Touareg
-                     new_cols[i] = self.colors["bleu_nuit"] if np.random.rand() > 0.2 else self.colors["turquoise"]
-                 else: # Camel side (Right)
-                     # Gold / Orange for Camel
-                     new_cols[i] = self.colors["orange_niger"] if np.random.rand() > 0.4 else self.colors["soleil_or"]
-             
-             self._touareg_cache[cache_key] = (pos, new_cols)
-        
-        base_pos, base_cols = self._touareg_cache[cache_key]
-        
-        # 3. Animate (Deform)
-        animated_pos = base_pos.copy()
-        
-        # Walk Cycle Parameters
-        walk_speed = 3.0
-        cycle = t * walk_speed
-        
-        for i in range(num):
-            x, y, z = animated_pos[i]
-            
-            # Local coordinates (undo center shift for logic)
-            lx = x
-            ly = y - 25 
-            
-            # --- CAMEL ANIMATION ---
-            if lx > -10: 
-                # Head Bobbing (Head is approx lx < 5, ly > 45)
-                if lx < 5 and ly > 40:
-                    animated_pos[i, 1] += 1.0 * np.sin(cycle)
-                    animated_pos[i, 0] += 0.5 * np.cos(cycle)
+            raw_contour = np.array([
+                # ─── QUEUE (fine, courbée vers le haut) ───
+                [-68, 48], [-66, 52], [-64, 54], [-61, 53], [-58, 50], [-55, 47],
                 
-                # Legs
-                # Front Leg (approx x=5)
-                if abs(lx - 5) < 4 and ly < 25:
-                    # Rotate around hip (5, 25)
-                    angle = 0.3 * np.sin(cycle)
-                    dy = ly - 25
-                    animated_pos[i, 0] += dy * np.sin(angle)
-                    
-                # Back Leg (approx x=25)
-                if abs(lx - 25) < 4 and ly < 25:
-                    # Rotate around hip (25, 25)
-                    angle = 0.3 * np.sin(cycle + np.pi) # Opposite phase
-                    dy = ly - 25
-                    animated_pos[i, 0] += dy * np.sin(angle)
+                # ─── CROUPE (descendante vers bosse) ───
+                [-52, 44], [-48, 41], [-44, 38], [-40, 36], [-36, 35],
+                
+                # ─── BOSSE UNIQUE (dromadaire = 1 bosse haute et marquée) ───
+                [-30, 36], [-24, 40], [-18, 46], [-12, 54], [-6, 60],
+                [0, 64], [6, 66],  # Sommet de la bosse
+                [12, 64], [18, 58], [24, 50], [28, 44],
+                
+                # ─── DOS vers ENCOLURE ───
+                [32, 42], [36, 42],
+                
+                # ─── ENCOLURE (longue, courbure élégante) ───
+                [40, 44], [44, 50], [48, 58], [52, 66], [56, 74], [58, 80],
+                
+                # ─── TÊTE (profil caractéristique avec chanfrein) ───
+                [60, 84], [64, 86], [68, 85], [72, 82],  # Crâne arrondi
+                [75, 78], [78, 74],  # Front
+                [80, 70], [82, 66],  # Chanfrein (ligne du nez)
+                [84, 62], [85, 58],  # Nez/museau
+                [84, 54], [82, 51],  # Lèvre supérieure
+                [79, 49], [76, 48], [73, 49],  # Menton
+                
+                # ─── GORGE (descente vers poitrail) ───
+                [70, 52], [66, 56], [62, 60], [58, 62],
+                [54, 62], [50, 58], [46, 52], [42, 46],
+                
+                # ─── POITRAIL ───
+                [40, 42], [38, 36], [36, 30],
+                
+                # ═══ PATTE AVANT DROITE (FR) – bien séparée ═══
+                [35, 26], [34, 20], [33, 14], [32, 8], [31, 2], [30, -2],
+                [28, -2], [27, 0],  # Sabot FR
+                [26, 6], [25, 14], [24, 22], [23, 28],
+                
+                # ─── ESPACE ENTRE PATTES AVANT (ventre visible) ───
+                [20, 30], [17, 30], [14, 30],
+                
+                # ═══ PATTE AVANT GAUCHE (FL) ═══
+                [12, 28], [11, 22], [10, 14], [9, 6], [8, 0], [7, -2],
+                [5, -2], [4, 0],  # Sabot FL
+                [3, 8], [2, 16], [1, 24],
+                
+                # ─── VENTRE (ligne basse) ───
+                [-2, 26], [-8, 24], [-14, 22], [-20, 20], [-26, 18],
+                
+                # ═══ PATTE ARRIÈRE DROITE (RR) ═══
+                [-30, 18], [-31, 12], [-32, 6], [-33, 0], [-34, -2],
+                [-36, -2], [-37, 0],  # Sabot RR
+                [-38, 8], [-39, 16], [-40, 24],
+                
+                # ─── ESPACE ENTRE PATTES ARRIÈRE ───
+                [-43, 26], [-46, 26], [-49, 26],
+                
+                # ═══ PATTE ARRIÈRE GAUCHE (RL) ═══
+                [-52, 24], [-53, 18], [-54, 10], [-55, 4], [-56, -2],
+                [-58, -2], [-59, 2],  # Sabot RL
+                [-60, 10], [-61, 20], [-62, 30],
+                
+                # ─── REMONTÉE VERS QUEUE ───
+                [-64, 36], [-66, 42], [-68, 48],
+            ], dtype=float)
 
-            # --- TOUAREG ANIMATION ---
+            # B-spline lissage → 600 points haute définition
+            try:
+                tck, _ = splprep([raw_contour[:, 0], raw_contour[:, 1]], s=2.0, per=True, k=3)
+                u_hd = np.linspace(0, 1, 600)
+                contour_smooth = np.column_stack(splev(u_hd, tck))
+            except Exception:
+                contour_smooth = raw_contour.copy()
+
+            # ════════════════════════════════════════════════════════════
+            # 2. ÉCHANTILLONNAGE – RÉPARTITION OPTIMISÉE 40/40/20
+            # ════════════════════════════════════════════════════════════
+            n_contour = int(num * 0.40)   # 40% sur le contour
+            n_interior = int(num * 0.40)  # 40% remplissage intérieur
+            n_keypoints = num - n_contour - n_interior  # 20% points clés
+            
+            clen = len(contour_smooth)
+            density = np.ones(clen)
+            
+            # Identifier les zones par position X approximative
+            xs = contour_smooth[:, 0]
+            ys = contour_smooth[:, 1]
+            
+            # Queue (×3)
+            density[(xs < -60)] *= 3.0
+            # Bosse (×2.5)
+            density[(xs > -20) & (xs < 20) & (ys > 50)] *= 2.5
+            # Tête/museau (×3)
+            density[(xs > 70)] *= 3.0
+            # Cou (×2)
+            density[(xs > 50) & (xs < 70) & (ys > 60)] *= 2.0
+            # Sabots/genoux (×3) - zones basses des pattes
+            density[(ys < 10)] *= 3.0
+            
+            # Échantillonnage pondéré
+            cumsum = np.cumsum(density)
+            cumsum /= cumsum[-1]
+            sample_u = np.linspace(0, 1, n_contour)
+            idx_sample = np.searchsorted(cumsum, sample_u)
+            idx_sample = np.clip(idx_sample, 0, clen - 1)
+            pts_contour = contour_smooth[idx_sample].copy()
+
+            # ════════════════════════════════════════════════════════════
+            # 3. REMPLISSAGE POISSON-DISC CONTRAINT
+            # ════════════════════════════════════════════════════════════
+            poly_path = Path(contour_smooth)
+            
+            bx_min, bx_max = xs.min() - 2, xs.max() + 2
+            by_min, by_max = ys.min() - 2, ys.max() + 2
+
+            # Zones d'exclusion : espaces entre pattes = moins dense
+            def exclusion_weight(x, y):
+                """Retourne 0-1, 0 = exclure, 1 = garder"""
+                w = 1.0
+                # Entre pattes avant (x: 14-20, y < 32)
+                if 14 < x < 20 and y < 32:
+                    w *= 0.15
+                # Entre pattes arrière (x: -49 à -43, y < 28)
+                if -49 < x < -43 and y < 28:
+                    w *= 0.15
+                # Ventre central = léger
+                if -26 < x < 0 and 18 < y < 28:
+                    w *= 0.4
+                return w
+
+            # Génération Poisson-disc simplifiée avec rejection
+            interior_pts = []
+            batch = max(n_interior * 12, 10000)
+            
+            for _ in range(20):
+                if len(interior_pts) >= n_interior:
+                    break
+                
+                xs_rand = rng.uniform(bx_min, bx_max, batch)
+                ys_rand = rng.uniform(by_min, by_max, batch)
+                candidates = np.column_stack((xs_rand, ys_rand))
+                
+                inside_mask = poly_path.contains_points(candidates)
+                valid = candidates[inside_mask]
+                
+                if len(valid) == 0:
+                    continue
+                
+                # Appliquer pondération d'exclusion
+                probs = np.array([exclusion_weight(p[0], p[1]) for p in valid])
+                
+                # Densité additionnelle : bosse et tête plus denses
+                for i, p in enumerate(valid):
+                    # Bosse
+                    if -15 < p[0] < 15 and p[1] > 45:
+                        probs[i] *= 1.8
+                    # Tête
+                    if p[0] > 60 and p[1] > 50:
+                        probs[i] *= 1.6
+                
+                probs = np.clip(probs, 0.05, 1.0)
+                accept = rng.random(len(valid)) < probs
+                interior_pts.extend(valid[accept].tolist())
+            
+            interior_pts = np.array(interior_pts[:n_interior]) if len(interior_pts) >= n_interior else (
+                np.array(interior_pts) if len(interior_pts) > 0 else np.zeros((0, 2))
+            )
+
+            # Compléter si nécessaire avec grille
+            if len(interior_pts) < n_interior:
+                needed = n_interior - len(interior_pts)
+                res = int(np.sqrt(needed * 4)) + 10
+                gx = np.linspace(bx_min, bx_max, res)
+                gy = np.linspace(by_min, by_max, res)
+                gxx, gyy = np.meshgrid(gx, gy)
+                grid = np.column_stack((gxx.ravel(), gyy.ravel()))
+                inside = poly_path.contains_points(grid)
+                grid_valid = grid[inside]
+                if len(grid_valid) >= needed:
+                    pick = rng.choice(len(grid_valid), needed, replace=False)
+                    extra = grid_valid[pick]
+                else:
+                    extra = grid_valid
+                interior_pts = np.vstack([interior_pts, extra]) if len(interior_pts) > 0 else extra
+
+            # ════════════════════════════════════════════════════════════
+            # 4. ASSEMBLAGE + SEGMENTATION ANATOMIQUE
+            # ════════════════════════════════════════════════════════════
+            pts_contour += rng.normal(0, 0.3, pts_contour.shape)
+            if len(interior_pts) > 0:
+                interior_pts += rng.normal(0, 0.6, interior_pts.shape)
+
+            all_2d = np.vstack([pts_contour, interior_pts]) if len(interior_pts) > 0 else pts_contour
+
+            # Ajuster au nombre exact
+            if len(all_2d) < num:
+                shortage = num - len(all_2d)
+                idx_dup = rng.choice(len(all_2d), shortage, replace=True)
+                jitter = rng.normal(0, 0.5, (shortage, 2))
+                all_2d = np.vstack([all_2d, all_2d[idx_dup] + jitter])
+            elif len(all_2d) > num:
+                all_2d = all_2d[:num]
+
+            # 3D (profil strict)
+            base_pos = np.zeros((num, 3))
+            base_pos[:, 0] = all_2d[:, 0]
+            base_pos[:, 1] = all_2d[:, 1] + 8  # Élever au-dessus du sol
+            base_pos[:, 2] = rng.uniform(-1.5, 1.5, num)  # Faible profondeur
+
+            # ═══════════════════════════════════════════════════════════
+            # SEGMENTATION ANATOMIQUE STRICTE – ZONES X ABSOLUES
+            # ═══════════════════════════════════════════════════════════
+            # Basé sur le contour SVG réel:
+            # - Pattes avant FR: X ~ 23-36 (contour original)
+            # - Pattes avant FL: X ~ 1-14
+            # - Pattes arrière RR: X ~ -40 à -28
+            # - Pattes arrière RL: X ~ -62 à -50
+            
+            px, py = base_pos[:, 0], base_pos[:, 1]
+            
+            # Ligne du ventre (sépare pattes du corps)
+            BELLY_Y = 32  # Y en dessous duquel = pattes
+            
+            # ─── PATTES AVANT (côté droit, X positif) ───
+            seg_leg_fr = (px >= 22) & (px <= 37) & (py < BELLY_Y)  # Patte avant droite
+            seg_leg_fl = (px >= 0) & (px <= 15) & (py < BELLY_Y)   # Patte avant gauche
+            
+            # ─── PATTES ARRIÈRE (côté gauche, X négatif) ───
+            seg_leg_rr = (px >= -42) & (px <= -27) & (py < BELLY_Y - 2)  # Patte arrière droite
+            seg_leg_rl = (px >= -65) & (px <= -48) & (py < BELLY_Y)      # Patte arrière gauche
+            
+            # ─── TÊTE (extrémité droite, haute) ───
+            seg_head = (px >= 70) & (py >= 55)
+            
+            # ─── COU (entre tête et épaule) ───
+            seg_neck = (px >= 50) & (px < 70) & (py >= 50) & ~seg_head
+            
+            # ─── BOSSE (zone centrale haute) ───
+            seg_hump = (px >= -20) & (px <= 25) & (py >= 62)
+            
+            # ─── QUEUE (extrémité gauche) ───
+            seg_tail = (px <= -60) & (py >= 48)
+            
+            # ─── TORSE (tout le reste) ───
+            seg_torso = ~(seg_head | seg_neck | seg_hump | seg_tail | 
+                          seg_leg_fr | seg_leg_fl | seg_leg_rr | seg_leg_rl)
+            
+            # ─── Points de pivot pour animation (hanches au niveau BELLY_Y) ───
+            pivots = {
+                "hip_fr": np.array([29.5, BELLY_Y]),   # Centre de la zone FR
+                "hip_fl": np.array([7.5, BELLY_Y]),    # Centre de la zone FL
+                "hip_rr": np.array([-34.5, BELLY_Y - 2]),  # Centre de la zone RR
+                "hip_rl": np.array([-56.5, BELLY_Y]),  # Centre de la zone RL
+                "neck_base": np.array([42, 50]),
+                "tail_base": np.array([-62, 50]),
+                # Points d'articulation critiques pour bloom
+                "shoulder": np.array([35, 34]),     # Épaule
+                "knee_fr": np.array([31, 12]),      # Genou avant droit
+                "knee_fl": np.array([8, 12]),       # Genou avant gauche
+                "knee_rr": np.array([-35, 10]),     # Genou arrière droit
+                "knee_rl": np.array([-57, 10]),     # Genou arrière gauche
+                "eye": np.array([75, 78]),          # Œil
+                "muzzle": np.array([85, 56]),       # Museau
+            }
+            
+            # ─── Points clés (articulations + œil + museau) pour haute densité ───
+            keypoint_centers = [
+                pivots["shoulder"], pivots["hip_fr"], pivots["hip_fl"],
+                pivots["hip_rr"], pivots["hip_rl"],
+                pivots["knee_fr"], pivots["knee_fl"], pivots["knee_rr"], pivots["knee_rl"],
+                pivots["eye"], pivots["muzzle"], pivots["neck_base"], pivots["tail_base"],
+            ]
+            
+            # Marquer les drones proches des points clés
+            keypoint_radius = 6.0
+            is_keypoint = np.zeros(num, dtype=bool)
+            for kp in keypoint_centers:
+                dist = np.sqrt((px - kp[0])**2 + (py - kp[1] - 8)**2)  # -8 pour offset Y
+                is_keypoint |= (dist < keypoint_radius)
+
+            # ════════════════════════════════════════════════════════════
+            # 5. PALETTE DE COULEURS ENRICHIE
+            # ════════════════════════════════════════════════════════════
+            # Corps principal : Blanc pur (6000K) → RGB(1.0, 1.0, 1.0)
+            # Zones inférieures : Orange chaud (3500K) → RGB(1.0, 0.75, 0.45)
+            # Contours : Bleu froid accent (7000K) → RGB(0.85, 0.92, 1.0)
+            # Points clés : Blanc intense + bloom
+            
+            base_cols = np.zeros((num, 3))
+            
+            # ─── Contour: Bleu froid accent (7000K) pour silhouette nette ───
+            cool_blue = np.array([0.88, 0.94, 1.0])
+            base_cols[:n_contour] = cool_blue * 1.10
+            
+            # ─── Intérieur: Dégradé blanc pur → orange chaud ───
+            if len(interior_pts) > 0:
+                y_int = base_pos[n_contour:n_contour + len(interior_pts), 1]
+                y_min, y_max = y_int.min(), max(y_int.max(), y_int.min() + 1)
+                y_norm = (y_int - y_min) / (y_max - y_min)
+                
+                warm_orange = np.array([1.0, 0.75, 0.45])   # Bas: 3500K orange chaud
+                pure_white = np.array([1.0, 1.0, 1.0])      # Haut: 6000K blanc pur
+                
+                blend = y_norm[:, None]
+                base_cols[n_contour:n_contour + len(interior_pts)] = warm_orange * (1 - blend) + pure_white * blend
+            
+            # ─── Pattes: glow fort pour visibilité ───
+            for seg in [seg_leg_fr, seg_leg_fl, seg_leg_rr, seg_leg_rl]:
+                base_cols[seg] *= 1.12
+            
+            # ─── Points clés (articulations, œil, museau): Blanc intense + bloom ───
+            intense_white = np.array([1.0, 1.0, 1.0])
+            base_cols[is_keypoint] = intense_white * 1.25  # Surbrillance bloom
+            
+            # ─── Bosse: Point focal brillant ───
+            base_cols[seg_hump] = np.array([1.0, 0.98, 0.92]) * 1.15
+            
+            # ─── Tête et cou: Blanc pur légèrement accentué ───
+            base_cols[seg_head] = np.array([1.0, 1.0, 0.98]) * 1.10
+            base_cols[seg_neck] = np.array([1.0, 0.98, 0.95]) * 1.05
+            
+            base_cols = np.clip(base_cols, 0, 1)
+
+            self._phase10_cache[num] = {
+                "pos": base_pos.copy(),
+                "cols": base_cols.copy(),
+                "n_contour": n_contour,
+                "seg_head": seg_head,
+                "seg_neck": seg_neck,
+                "seg_hump": seg_hump,
+                "seg_tail": seg_tail,
+                "seg_leg_fr": seg_leg_fr,
+                "seg_leg_fl": seg_leg_fl,
+                "seg_leg_rr": seg_leg_rr,
+                "seg_leg_rl": seg_leg_rl,
+                "seg_torso": seg_torso,
+                "pivots": pivots,
+                "is_keypoint": is_keypoint,  # Points clés pour bloom
+            }
+
+        # ════════════════════════════════════════════════════════════
+        # ANIMATION MARCHE BIOMÉCANIQUE – GAIT LATÉRAL AUTHENTIQUE
+        # ════════════════════════════════════════════════════════════
+        cached = self._phase10_cache[num]
+        animated = cached["pos"].copy()
+        cols = cached["cols"].copy()
+        n_contour = cached["n_contour"]
+        pivots = cached["pivots"]
+
+        # ═══════════════════════════════════════════════════════════
+        # CYCLE DE MARCHE 4 PHASES (2.0 secondes = réaliste dromadaire)
+        # ═══════════════════════════════════════════════════════════
+        # Phase 1 (0-0.5s): Patte avant droite avance, arrière-gauche poussée
+        # Phase 2 (0.5-1s): Transfert poids, soulèvement avant gauche
+        # Phase 3 (1-1.5s): Patte arrière gauche avance, avant-gauche levé  
+        # Phase 4 (1.5-2s): Retour position neutre
+        
+        CYCLE_DURATION = 2.0
+        phi = (t % CYCLE_DURATION) / CYCLE_DURATION  # Phase normalisée 0→1
+        
+        # Identifier la phase actuelle (1-4)
+        current_phase_num = int(phi * 4) + 1  # 1, 2, 3, ou 4
+        phase_progress = (phi * 4) % 1.0      # Progression dans la phase (0→1)
+
+        # ───────────────────────────────────────────────────────────
+        # INTERPOLATION MINIMUM-JERK: s(t) = 10t³ - 15t⁴ + 6t⁵
+        # → Accélération douce, zéro à-coup
+        # ───────────────────────────────────────────────────────────
+        def min_jerk(x):
+            """Interpolation minimum-jerk pour mouvement naturel."""
+            x = np.clip(x, 0, 1)
+            return 10 * x**3 - 15 * x**4 + 6 * x**5
+
+        # ───────────────────────────────────────────────────────────
+        # TRAJECTOIRE DE PATTE (elliptique avec phase aérienne/sol)
+        # ───────────────────────────────────────────────────────────
+        def leg_trajectory(phase_offset, step_len=8.0, lift_height=6.0):
+            """
+            Calcule le déplacement X et élévation Z d'une patte.
+            
+            phase < 0.5 : Phase aérienne (levée + avancée)
+            phase >= 0.5: Phase au sol (retour en arrière)
+            
+            Returns: (dx, dz) déplacements
+            """
+            local_phi = (phi + phase_offset) % 1.0
+            
+            if local_phi < 0.5:
+                # Phase aérienne: avancée lente avec levée
+                t_air = local_phi / 0.5  # 0→1 pendant phase aérienne
+                t_smooth = min_jerk(t_air)
+                dx = step_len * (t_smooth - 0.5)
+                dz = lift_height * np.sin(np.pi * t_air)  # Arc sinusoïdal
             else:
-                # Bobbing
-                animated_pos[i, 1] += 0.3 * np.sin(cycle + 0.5)
+                # Phase au sol: retour rapide
+                t_ground = (local_phi - 0.5) / 0.5  # 0→1 pendant phase sol
+                t_smooth = min_jerk(t_ground)
+                dx = step_len * (0.5 - t_smooth)
+                dz = 0.0  # Patte au sol
+            
+            return dx, dz
+
+        # ═══════════════════════════════════════════════════════════
+        # GAIT LATÉRAL (AMBLE) – CHAMEAU AUTHENTIQUE
+        # ═══════════════════════════════════════════════════════════
+        # FL + RL ensemble (côté gauche)
+        # FR + RR ensemble (côté droit), déphasé de 0.5
+        
+        PHASE_LEFT = 0.0    # Côté gauche: phase 0
+        PHASE_RIGHT = 0.5   # Côté droit: phase 0.5
+
+        def animate_leg(mask, pivot, phase_offset, step_len=8.0, lift_height=6.0, swing_amp=0.20):
+            """
+            Anime une patte avec:
+            - Rotation autour de la hanche (swing)
+            - Translation avant/arrière (step)
+            - Élévation pendant phase aérienne (lift)
+            """
+            if not np.any(mask):
+                return
+            
+            # Calculer trajectoire
+            dx_step, dz_lift = leg_trajectory(phase_offset, step_len, lift_height)
+            
+            # Phase locale pour swing
+            local_phi = (phi + phase_offset) % 1.0
+            swing_angle = swing_amp * np.sin(2 * np.pi * local_phi)
+            
+            # Rotation autour de la hanche
+            cos_a, sin_a = np.cos(swing_angle), np.sin(swing_angle)
+            rel_x = animated[mask, 0] - pivot[0]
+            rel_y = animated[mask, 1] - pivot[1]
+            
+            # Appliquer rotation
+            new_x = pivot[0] + rel_x * cos_a - rel_y * sin_a
+            new_y = pivot[1] + rel_x * sin_a + rel_y * cos_a
+            
+            animated[mask, 0] = new_x
+            animated[mask, 1] = new_y
+            
+            # Appliquer élévation (plus forte au sabot qu'à la cuisse)
+            dist_from_hip = np.sqrt(rel_x**2 + rel_y**2)
+            lift_factor = np.clip(dist_from_hip / 25.0, 0.2, 1.0)
+            animated[mask, 1] += dz_lift * lift_factor
+
+        # ─── Animer les 4 pattes ───
+        # Côté gauche (FL + RL) ensemble
+        animate_leg(cached["seg_leg_fl"], pivots["hip_fl"], PHASE_LEFT, step_len=7.0, lift_height=5.5, swing_amp=0.18)
+        animate_leg(cached["seg_leg_rl"], pivots["hip_rl"], PHASE_LEFT, step_len=6.5, lift_height=5.0, swing_amp=0.16)
+        
+        # Côté droit (FR + RR) ensemble, déphasé de 0.5
+        animate_leg(cached["seg_leg_fr"], pivots["hip_fr"], PHASE_RIGHT, step_len=7.0, lift_height=5.5, swing_amp=0.18)
+        animate_leg(cached["seg_leg_rr"], pivots["hip_rr"], PHASE_RIGHT, step_len=6.5, lift_height=5.0, swing_amp=0.16)
+
+        # ═══════════════════════════════════════════════════════════
+        # MOUVEMENTS SECONDAIRES – TRONC ET BOSSE
+        # ═══════════════════════════════════════════════════════════
+        torso_mask = cached["seg_torso"]
+        hump_mask = cached["seg_hump"]
+        body_mask = torso_mask | hump_mask
+        
+        # ─── Body sway (oscillation latérale Z, synchronisée avec pas) ───
+        body_sway = 0.03 * np.sin(4 * np.pi * phi)  # ±3% en Z
+        animated[body_mask, 2] += body_sway * 40  # Échelle monde
+        
+        # ─── Body bob (oscillation verticale, 2× par cycle car 2 pas) ───
+        body_bob = 0.02 * np.sin(4 * np.pi * phi)  # ±2% en Y
+        animated[body_mask, 1] += body_bob * 50
+        
+        # ─── Légère inclinaison vers l'avant (dynamique de marche) ───
+        # Le buste s'incline légèrement selon la phase
+        tilt_forward = 0.015 * np.sin(2 * np.pi * phi)  # ±1.5%
+        
+        # ─── BOSSE : Oscillation verticale ±3° + inertie retardée ───
+        hump_oscillation = np.radians(3.0) * np.sin(4 * np.pi * phi)  # ±3 degrés
+        hump_lag = 0.5 * body_sway  # Inertie retardée
+        
+        if np.any(hump_mask):
+            # Oscillation verticale de la bosse
+            hump_center_y = 70  # Centre Y approximatif de la bosse
+            rel_y = animated[hump_mask, 1] - hump_center_y
+            animated[hump_mask, 1] += hump_oscillation * np.abs(rel_y) * 0.15
+            # Retard d'inertie latérale
+            animated[hump_mask, 2] += hump_lag * 25
+
+        # ═══════════════════════════════════════════════════════════
+        # TÊTE ET COU – HOCHEMENT RYTHMIQUE + ONDULATION HORIZONTALE
+        # ═══════════════════════════════════════════════════════════
+        head_mask = cached["seg_head"]
+        neck_mask = cached["seg_neck"]
+        neck_base = pivots["neck_base"]
+        
+        # ─── Hochement vertical (synchronisé avec pas, léger retard) ───
+        head_phase = phi - 0.1  # Retard de 10% du cycle
+        head_bob = 3.0 * np.sin(4 * np.pi * head_phase)  # Amplitude augmentée
+        
+        if np.any(head_mask):
+            # Tête haute pendant poussée, basse pendant levée
+            animated[head_mask, 1] += head_bob * 1.2
+        if np.any(neck_mask):
+            # Cou: gradient de mouvement (base moins, sommet plus)
+            neck_y = animated[neck_mask, 1]
+            neck_gradient = np.clip((neck_y - neck_base[1]) / 30.0, 0.3, 1.0)
+            animated[neck_mask, 1] += head_bob * 0.6 * neck_gradient
+        
+        # ─── Ondulation horizontale du cou (mouvement en S) ───
+        neck_wave_phase = phi * 2 * np.pi + 0.3
+        neck_wave_amp = 2.5  # Amplitude de l'ondulation
+        
+        if np.any(neck_mask):
+            neck_y = animated[neck_mask, 1]
+            neck_height_factor = np.clip((neck_y - neck_base[1]) / 35.0, 0, 1)
+            neck_wave = neck_wave_amp * np.sin(neck_wave_phase) * neck_height_factor
+            animated[neck_mask, 2] += neck_wave
+        
+        # ─── Balancement latéral de la tête (en Z) ───
+        head_sway = 2.2 * np.sin(2 * np.pi * phi + 0.25)
+        if np.any(head_mask):
+            animated[head_mask, 2] += head_sway
+        if np.any(neck_mask):
+            animated[neck_mask, 2] += head_sway * 0.35
+
+        # ═══════════════════════════════════════════════════════════
+        # QUEUE – BALANCEMENT À CONTRE-TEMPS NATUREL
+        # ═══════════════════════════════════════════════════════════
+        tail_mask = cached["seg_tail"]
+        tail_base = pivots["tail_base"]
+        
+        if np.any(tail_mask):
+            # ─── Phase à contre-temps des pattes (opposition naturelle) ───
+            # Quand pattes gauches avancent → queue va à droite, et inversement
+            tail_phase = phi + 0.5 + 0.25  # À contre-temps + décalage
+            
+            # ─── Rotation principale autour de la base ───
+            tail_swing_amp = 0.15  # ±8.5 degrés
+            tail_angle = tail_swing_amp * np.sin(2 * np.pi * tail_phase)
+            cos_t, sin_t = np.cos(tail_angle), np.sin(tail_angle)
+            
+            dx = animated[tail_mask, 0] - tail_base[0]
+            dy = animated[tail_mask, 1] - tail_base[1]
+            
+            animated[tail_mask, 0] = tail_base[0] + dx * cos_t - dy * sin_t
+            animated[tail_mask, 1] = tail_base[1] + dx * sin_t + dy * cos_t
+            
+            # ─── Ondulation latérale (mouvement de fouet en Z) ───
+            # Plus grande amplitude à l'extrémité qu'à la base
+            dist_from_base = np.sqrt(dx**2 + dy**2)
+            wave_factor = np.clip(dist_from_base / 10.0, 0.3, 1.0)
+            tail_wave = 3.5 * np.sin(4 * np.pi * tail_phase - 0.7) * wave_factor
+            animated[tail_mask, 2] += tail_wave
+            
+            # ─── Micro-oscillation secondaire (queue "vivante") ───
+            tail_micro = 0.8 * np.sin(8 * np.pi * phi + dist_from_base * 0.3)
+            animated[tail_mask, 2] += tail_micro
+
+        # ═══════════════════════════════════════════════════════════
+        # EFFETS DYNAMIQUES – BLOOM + PULSATION SYNCHRONISÉE
+        # ═══════════════════════════════════════════════════════════
+        
+        # ─── Contour: Bleu froid avec glow pulsé synchronisé ───
+        # Pulsation liée au rythme de marche (2× par cycle)
+        glow_pulse = 0.90 + 0.10 * np.sin(4 * np.pi * phi)
+        cols[:n_contour] *= glow_pulse
+        
+        # ─── Pattes: Bloom augmenté pendant phase de levée ───
+        for seg, phase_offset in [(cached["seg_leg_fl"], PHASE_LEFT),
+                                   (cached["seg_leg_rl"], PHASE_LEFT),
+                                   (cached["seg_leg_fr"], PHASE_RIGHT),
+                                   (cached["seg_leg_rr"], PHASE_RIGHT)]:
+            if np.any(seg):
+                local_phi = (phi + phase_offset) % 1.0
+                # Bloom plus fort pendant phase aérienne (levée)
+                if local_phi < 0.5:
+                    leg_bloom = 1.08 + 0.12 * np.sin(np.pi * local_phi / 0.5)
+                else:
+                    leg_bloom = 1.05
+                cols[seg] *= leg_bloom
+        
+        # ─── Articulations (genoux, hanches): Bloom intense ───
+        # Utiliser is_keypoint du cache
+        is_keypoint = cached.get("is_keypoint", np.zeros(num, dtype=bool))
+        if np.any(is_keypoint):
+            articulation_bloom = 1.15 + 0.10 * np.sin(4 * np.pi * phi + 0.5)
+            cols[is_keypoint] *= articulation_bloom
+        
+        # ─── Bosse: Point focal avec pulsation lente ───
+        if np.any(hump_mask):
+            hump_glow = 1.10 + 0.08 * np.sin(2 * np.pi * phi)
+            cols[hump_mask] *= hump_glow
+        
+        # ─── Tête: Micro-scintillement + œil brillant ───
+        if np.any(head_mask):
+            n_head = np.sum(head_mask)
+            head_sparkle = 0.95 + 0.08 * np.sin(t * 1.2 + np.arange(n_head) * 0.12)
+            cols[head_mask] *= head_sparkle[:, None]
+        
+        # ─── Queue: Traînée lumineuse (plus brillant à l'extrémité) ───
+        if np.any(tail_mask):
+            tail_x = animated[tail_mask, 0]
+            trail_factor = np.clip((tail_base[0] - tail_x) / 8.0, 0.8, 1.3)
+            cols[tail_mask] *= trail_factor[:, None]
+        
+        # Clip final
+        cols = np.clip(cols, 0, 1)
+
+        # Légère ondulation Z pour effet vivant (synchronisée avec le cycle)
+        idx = np.arange(num)
+        animated[:, 2] += 0.3 * np.sin(0.15 * idx + 2 * np.pi * phi)
+
+        return animated, cols
+
+    def _phase_dubai_camel(self, num, t=0.0):
+        """
+        🐫 CHAMEAU DE DUBAÏ – STYLE MINIMALISTE WORLD RECORD
+        
+        ═══════════════════════════════════════════════════════════════
+        SPÉCIFICATION: Dubai Drone Show Guinness World Record Style
+        ═══════════════════════════════════════════════════════════════
+        
+        🎯 CARACTÉRISTIQUES CLÉS:
+        ─────────────────────────
+        • DEUX BOSSES (Chameau Bactrien) symétriques
+        • Style ÉPURÉ minimaliste – contours uniquement
+        • Pas de remplissage dense – silhouette pure
+        • Blanc pur #FFFFFF sur fond noir
+        • Échelle MONUMENTALE
+        
+        📐 PROPORTIONS:
+        ───────────────
+        • Largeur totale: ~100m
+        • Hauteur totale: ~50m
+        • Contour principal: 95% des drones
+        • Marche lente majestueuse (cycle 4s)
+        
+        🎨 ÉCLAIRAGE:
+        ─────────────
+        • Couleur: Blanc pur uniforme
+        • Intensité: Maximale (100%)
+        • Bloom léger sur contour
+        • Aucun effet spécial (minimalisme)
+        
+        Dimensions: ~100m (L) × 50m (H)
+        ═══════════════════════════════════════════════════════════════
+        """
+        
+        cache_key = f"dubai_camel_{num}"
+        
+        if cache_key not in self._phase10_cache:
+            rng = np.random.default_rng(1001 + num)
+            from scipy.interpolate import splprep, splev
+            
+            # ════════════════════════════════════════════════════════════
+            # CONTOUR MINIMALISTE – CHAMEAU À DEUX BOSSES (BACTRIEN)
+            # ════════════════════════════════════════════════════════════
+            # Style épuré Dubai Drone Show – courbes douces, géométrie simple
+            # Échelle: 100m × 50m
+            
+            raw_contour = np.array([
+                # ─── QUEUE (courte, simple) ───
+                [-48, 22], [-46, 25], [-44, 26],
                 
-                # Legs (approx x=-25)
-                if ly < 15:
-                    # Simple walking swing
-                    angle = 0.25 * np.sin(cycle)
-                    dy = ly - 15
-                    animated_pos[i, 0] += dy * np.sin(angle)
-                    
-        return animated_pos, base_cols
+                # ─── CROUPE (montée vers bosse arrière) ───
+                [-40, 27], [-36, 30], [-32, 35],
+                
+                # ═══ BOSSE ARRIÈRE (demi-cercle symétrique) ═══
+                [-28, 42], [-24, 48], [-20, 52], [-16, 54],  # Montée
+                [-12, 54], [-8, 52], [-4, 48],               # Sommet
+                [0, 42],                                      # Descente
+                
+                # ─── SELLE (creux entre les bosses) ───
+                [4, 38], [8, 36], [12, 38],
+                
+                # ═══ BOSSE AVANT (demi-cercle symétrique) ═══
+                [16, 42], [20, 48], [24, 52], [28, 54],      # Montée
+                [32, 54], [36, 52], [40, 48],                # Sommet
+                [44, 42],                                     # Descente
+                
+                # ─── ENCOLURE (courbe douce vers tête) ───
+                [48, 40], [52, 42], [56, 48], [60, 56], [64, 64],
+                
+                # ─── TÊTE (triangulaire allongée stylisée) ───
+                [68, 68], [72, 70], [76, 68],   # Crâne
+                [80, 64], [82, 58],             # Front/chanfrein
+                [84, 52], [82, 48],             # Museau
+                [78, 46], [74, 48],             # Menton
+                
+                # ─── GORGE (descente vers poitrail) ───
+                [70, 50], [66, 52], [62, 52], [58, 48],
+                [54, 42], [50, 36], [48, 30],
+                
+                # ═══ PATTE AVANT DROITE (rectangle étroit) ═══
+                [46, 26], [45, 18], [44, 10], [43, 2],
+                [41, 2], [40, 10], [39, 18], [38, 24],
+                
+                # ─── ESPACE AVANT ───
+                [34, 24], [30, 24],
+                
+                # ═══ PATTE AVANT GAUCHE (rectangle étroit) ═══
+                [28, 24], [27, 16], [26, 8], [25, 2],
+                [23, 2], [22, 8], [21, 16], [20, 22],
+                
+                # ─── VENTRE (ligne simple) ───
+                [16, 22], [8, 20], [0, 18], [-8, 18], [-16, 20],
+                
+                # ═══ PATTE ARRIÈRE DROITE (rectangle étroit) ═══
+                [-20, 20], [-21, 12], [-22, 4], [-23, -2],
+                [-25, -2], [-26, 4], [-27, 12], [-28, 18],
+                
+                # ─── ESPACE ARRIÈRE ───
+                [-32, 18], [-36, 18],
+                
+                # ═══ PATTE ARRIÈRE GAUCHE (rectangle étroit) ═══
+                [-38, 18], [-39, 10], [-40, 4], [-41, -2],
+                [-43, -2], [-44, 4], [-45, 12], [-46, 20],
+                
+                # ─── RETOUR VERS QUEUE ───
+                [-48, 22],
+            ], dtype=float)
+            
+            # B-spline lissage pour courbes douces (style Dubai)
+            try:
+                tck, _ = splprep([raw_contour[:, 0], raw_contour[:, 1]], s=3.0, per=True, k=3)
+                u_hd = np.linspace(0, 1, num)  # Tous les drones sur le contour
+                contour_smooth = np.column_stack(splev(u_hd, tck))
+            except Exception:
+                # Fallback: répéter le contour brut
+                repeat = max(1, num // len(raw_contour) + 1)
+                contour_smooth = np.tile(raw_contour, (repeat, 1))[:num]
+            
+            # ════════════════════════════════════════════════════════════
+            # POSITIONNEMENT 3D – CONTOURS UNIQUEMENT (MINIMALISTE)
+            # ════════════════════════════════════════════════════════════
+            pts_2d = contour_smooth[:num].copy()
+            
+            # Ajuster au nombre exact
+            if len(pts_2d) < num:
+                shortage = num - len(pts_2d)
+                idx_dup = rng.choice(len(pts_2d), shortage, replace=True)
+                jitter = rng.normal(0, 0.2, (shortage, 2))
+                pts_2d = np.vstack([pts_2d, pts_2d[idx_dup] + jitter])
+            
+            # Petit jitter pour éviter superposition parfaite
+            pts_2d += rng.normal(0, 0.15, pts_2d.shape)
+            
+            # 3D: profil plat (2D sur plan XY)
+            base_pos = np.zeros((num, 3))
+            base_pos[:, 0] = pts_2d[:, 0]
+            base_pos[:, 1] = pts_2d[:, 1] + 20  # Élever au-dessus du sol
+            base_pos[:, 2] = rng.uniform(-0.5, 0.5, num)  # Très faible profondeur
+            
+            # ════════════════════════════════════════════════════════════
+            # SEGMENTATION SIMPLIFIÉE
+            # ════════════════════════════════════════════════════════════
+            px, py = base_pos[:, 0], base_pos[:, 1]
+            BELLY_Y = 26 + 20  # Ligne du ventre ajustée
+            
+            # Pattes (zones X pour animation)
+            seg_leg_fr = (px >= 38) & (px <= 48) & (py < BELLY_Y)
+            seg_leg_fl = (px >= 20) & (px <= 30) & (py < BELLY_Y)
+            seg_leg_rr = (px >= -28) & (px <= -18) & (py < BELLY_Y)
+            seg_leg_rl = (px >= -48) & (px <= -36) & (py < BELLY_Y)
+            
+            # Tête
+            seg_head = (px >= 68) & (py >= 60)
+            
+            # Cou
+            seg_neck = (px >= 54) & (px < 68) & (py >= 48)
+            
+            # Bosses
+            seg_hump_front = (px >= 12) & (px <= 48) & (py >= 58)
+            seg_hump_rear = (px >= -28) & (px <= 4) & (py >= 56)
+            seg_humps = seg_hump_front | seg_hump_rear
+            
+            # Queue
+            seg_tail = (px <= -44) & (py >= 42)
+            
+            # Torse (reste)
+            seg_torso = ~(seg_head | seg_neck | seg_humps | seg_tail |
+                          seg_leg_fr | seg_leg_fl | seg_leg_rr | seg_leg_rl)
+            
+            # Pivots pour animation
+            pivots = {
+                "hip_fr": np.array([43, BELLY_Y]),
+                "hip_fl": np.array([25, BELLY_Y]),
+                "hip_rr": np.array([-23, BELLY_Y]),
+                "hip_rl": np.array([-42, BELLY_Y]),
+                "neck_base": np.array([50, 56]),
+                "tail_base": np.array([-46, 44]),
+            }
+            
+            # ════════════════════════════════════════════════════════════
+            # COULEURS – BLANC PUR UNIFORME (STYLE DUBAI)
+            # ════════════════════════════════════════════════════════════
+            base_cols = np.ones((num, 3))  # Blanc pur #FFFFFF
+            
+            self._phase10_cache[cache_key] = {
+                "pos": base_pos.copy(),
+                "cols": base_cols.copy(),
+                "seg_head": seg_head,
+                "seg_neck": seg_neck,
+                "seg_humps": seg_humps,
+                "seg_tail": seg_tail,
+                "seg_leg_fr": seg_leg_fr,
+                "seg_leg_fl": seg_leg_fl,
+                "seg_leg_rr": seg_leg_rr,
+                "seg_leg_rl": seg_leg_rl,
+                "seg_torso": seg_torso,
+                "pivots": pivots,
+            }
+        
+        # ════════════════════════════════════════════════════════════
+        # ANIMATION MARCHE MAJESTUEUSE (CYCLE LENT 4.0s)
+        # ════════════════════════════════════════════════════════════
+        cached = self._phase10_cache[cache_key]
+        animated = cached["pos"].copy()
+        cols = cached["cols"].copy()
+        pivots = cached["pivots"]
+        
+        # Cycle de marche lent et majestueux (4 secondes)
+        CYCLE_DURATION = 4.0
+        phi = (t % CYCLE_DURATION) / CYCLE_DURATION
+        
+        # Interpolation minimum-jerk pour fluidité
+        def min_jerk(x):
+            x = np.clip(x, 0, 1)
+            return 10 * x**3 - 15 * x**4 + 6 * x**5
+        
+        # Trajectoire de patte simplifiée
+        def leg_trajectory(phase_offset, step_len=4.0, lift_height=3.0):
+            local_phi = (phi + phase_offset) % 1.0
+            
+            if local_phi < 0.5:
+                t_air = local_phi / 0.5
+                t_smooth = min_jerk(t_air)
+                dx = step_len * (t_smooth - 0.5)
+                dz = lift_height * np.sin(np.pi * t_air)
+            else:
+                t_ground = (local_phi - 0.5) / 0.5
+                t_smooth = min_jerk(t_ground)
+                dx = step_len * (0.5 - t_smooth)
+                dz = 0.0
+            
+            return dx, dz
+        
+        # Phases de marche (opposées avant/arrière)
+        PHASE_FR = 0.0
+        PHASE_FL = 0.5
+        PHASE_RR = 0.25
+        PHASE_RL = 0.75
+        
+        def animate_leg(mask, pivot, phase_offset, step_len=4.0, lift_height=3.0, swing_amp=0.10):
+            if not np.any(mask):
+                return
+            
+            dx_step, dz_lift = leg_trajectory(phase_offset, step_len, lift_height)
+            local_phi = (phi + phase_offset) % 1.0
+            swing_angle = swing_amp * np.sin(2 * np.pi * local_phi)
+            
+            cos_a, sin_a = np.cos(swing_angle), np.sin(swing_angle)
+            rel_x = animated[mask, 0] - pivot[0]
+            rel_y = animated[mask, 1] - pivot[1]
+            
+            new_x = pivot[0] + rel_x * cos_a - rel_y * sin_a
+            new_y = pivot[1] + rel_x * sin_a + rel_y * cos_a
+            
+            animated[mask, 0] = new_x
+            animated[mask, 1] = new_y
+            
+            dist_from_hip = np.sqrt(rel_x**2 + rel_y**2)
+            lift_factor = np.clip(dist_from_hip / 20.0, 0.2, 1.0)
+            animated[mask, 1] += dz_lift * lift_factor
+        
+        # Animer les 4 pattes
+        animate_leg(cached["seg_leg_fr"], pivots["hip_fr"], PHASE_FR, step_len=3.5, lift_height=2.5, swing_amp=0.08)
+        animate_leg(cached["seg_leg_fl"], pivots["hip_fl"], PHASE_FL, step_len=3.5, lift_height=2.5, swing_amp=0.08)
+        animate_leg(cached["seg_leg_rr"], pivots["hip_rr"], PHASE_RR, step_len=3.0, lift_height=2.0, swing_amp=0.07)
+        animate_leg(cached["seg_leg_rl"], pivots["hip_rl"], PHASE_RL, step_len=3.0, lift_height=2.0, swing_amp=0.07)
+        
+        # ═══════════════════════════════════════════════════════════
+        # MOUVEMENTS SECONDAIRES SUBTILS
+        # ═══════════════════════════════════════════════════════════
+        
+        # Corps: légère oscillation verticale (body_sway = 0.05)
+        body_mask = cached["seg_torso"] | cached["seg_humps"]
+        body_bob = 0.05 * np.sin(4 * np.pi * phi) * 30  # ±1.5 unités
+        animated[body_mask, 1] += body_bob
+        
+        # Tête: très léger hochement (head_movement = 0.03)
+        head_mask = cached["seg_head"]
+        neck_mask = cached["seg_neck"]
+        head_phase = phi - 0.08
+        head_bob = 0.03 * np.sin(4 * np.pi * head_phase) * 40
+        
+        if np.any(head_mask):
+            animated[head_mask, 1] += head_bob
+        if np.any(neck_mask):
+            animated[neck_mask, 1] += head_bob * 0.4
+        
+        # Queue: presque immobile (très subtil)
+        tail_mask = cached["seg_tail"]
+        if np.any(tail_mask):
+            tail_wave = 0.5 * np.sin(2 * np.pi * phi + 0.5)
+            animated[tail_mask, 2] += tail_wave
+        
+        # ═══════════════════════════════════════════════════════════
+        # ÉCLAIRAGE UNIFORME BLANC (MINIMALISME DUBAI)
+        # ═══════════════════════════════════════════════════════════
+        # Légère pulsation uniforme pour bloom
+        glow_pulse = 0.95 + 0.05 * np.sin(t * 1.5)
+        cols *= glow_pulse
+        
+        cols = np.clip(cols, 0, 1)
+        
+        return animated, cols
 
     def _phase_11_croix_agadez(self, num):
         # "Croix d'Agadez" - Solid Image Rendering
