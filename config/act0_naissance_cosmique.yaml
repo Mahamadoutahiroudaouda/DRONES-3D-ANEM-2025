@@ -1,0 +1,432 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# 🎭 ACTE 0 : NAISSANCE COSMIQUE - Configuration Complète
+# ═══════════════════════════════════════════════════════════════════════════
+# 
+# L'ouverture magique du spectacle ANEM 2025.
+# Du néant cosmique naît la lumière, qui s'organise en une constellation
+# pour finalement exploser en une promesse de beauté.
+#
+# "Dans le silence du désert nigérien, avant l'aube..."
+#
+# ═══════════════════════════════════════════════════════════════════════════
+
+act0_naissance_cosmique:
+  # ─────────────────────────────────────────────────────────────────────────
+  # MÉTADONNÉES
+  # ─────────────────────────────────────────────────────────────────────────
+  metadata:
+    name: "Naissance Cosmique"
+    subtitle: "De la Nuit aux Étoiles"
+    duration: 20.0  # secondes
+    drones: 1000
+    description: |
+      L'Acte 0 est l'ouverture magique du spectacle ANEM 2025.
+      Il représente la genèse : du néant cosmique naît la lumière,
+      qui s'organise en une constellation pour finalement exploser
+      en une promesse de beauté. C'est la métaphore parfaite pour
+      une cérémonie d'ouverture : du vide émerge l'événement.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # TIMELINE DES PHASES
+  # ─────────────────────────────────────────────────────────────────────────
+  timeline:
+    phase_1_nuit_primordiale:
+      start: 0.0
+      end: 3.0
+      duration: 3.0
+      name: "La Nuit Primordiale"
+      quote: "Dans le silence du désert nigérien, avant l'aube..."
+      description: |
+        Ciel complètement noir, étoiles qui apparaissent progressivement.
+        De 0 à 100 étoiles en 3 secondes avec effet scintillement.
+      
+      events:
+        - time: 0.0
+          event: "Ciel noir total"
+          drones_visible: 0
+        - time: 0.5
+          event: "Alpha Centauri (étoile du berger)"
+          drones_visible: 1
+        - time: 1.0
+          event: "Triangle d'été"
+          drones_visible: 3
+        - time: 1.5
+          event: "Constellation naissante"
+          drones_visible: 8
+        - time: 2.0
+          event: "Essaim apparaît"
+          drones_visible: 20
+        - time: 2.5
+          event: "Ciel qui s'étoile"
+          drones_visible: 50
+        - time: 3.0
+          event: "Nuit étoilée complète"
+          drones_visible: 100
+    
+    phase_2_constellation_anem:
+      start: 3.0
+      end: 8.0
+      duration: 5.0
+      name: "Constellation ANEM"
+      quote: "Les étoiles se rassemblent pour écrire notre destin..."
+      description: |
+        Les étoiles commencent à bouger et forment le texte "ANEM"
+        lettre par lettre avec effet stroke drawing.
+      
+      letters:
+        A:
+          start_time: 0.0  # relatif à phase 2
+          duration: 0.8
+          drones: 200
+          color: [1.0, 1.0, 1.0]  # Blanc pur
+          color_name: "Blanc Pur"
+          
+        N:
+          start_time: 1.0
+          duration: 0.8
+          drones: 200
+          color: [1.0, 0.5, 0.0]  # Orange Niger
+          color_name: "Orange Niger"
+          
+        E:
+          start_time: 2.0
+          duration: 0.8
+          drones: 200
+          color: [0.0, 0.6, 0.2]  # Vert Niger
+          color_name: "Vert Niger"
+          
+        M:
+          start_time: 3.0
+          duration: 0.8
+          drones: 200
+          color: [1.0, 1.0, 1.0]  # Blanc pur
+          color_name: "Blanc Pur"
+      
+      text_dimensions:
+        total_width: 80.0   # mètres
+        height: 40.0        # mètres
+        letter_spacing: 20.0
+        center_altitude: 80.0
+      
+      pulsation:
+        enabled: true
+        start_time: 4.0  # après formation complète
+        frequency: 1.0   # Hz (battement de cœur)
+        amplitude: 0.15  # 15% variation intensité
+    
+    phase_3_coeur_cosmique:
+      start: 8.0
+      end: 12.0
+      duration: 4.0
+      name: "Cœur Cosmique"
+      quote: "L'énergie se concentre, le cœur bat plus fort..."
+      description: |
+        Tous les drones convergent en spirale vers le centre
+        pour former une sphère dorée qui pulse comme un cœur vivant.
+      
+      convergence:
+        type: "spiral"
+        duration: 1.0
+        rotations: 4  # 4 tours de spirale
+        
+      sphere:
+        radius: 30.0  # mètres
+        center: [0, 100, 0]
+        color: [1.0, 0.84, 0.0]  # Or Soleil
+        color_name: "Or Soleil"
+        
+      pulsations:
+        - time: 1.5   # t=9.5s global
+          label: "1ère pulsation"
+          intensity: "forte"
+          radius_factor: 1.5
+          
+        - time: 2.5   # t=10.5s global
+          label: "2ème pulsation"
+          intensity: "plus forte"
+          radius_factor: 1.7
+          
+        - time: 3.5   # t=11.5s global
+          label: "3ème pulsation (pré-explosion)"
+          intensity: "très forte"
+          radius_factor: 2.0
+    
+    phase_4_eclosion_finale:
+      start: 12.0
+      end: 20.0
+      duration: 8.0
+      name: "Éclosion Finale"
+      quote: "L'explosion créatrice donne naissance au spectacle..."
+      description: |
+        Explosion majeure! Les drones sont projetés vers l'extérieur
+        puis forment un arc-en-ciel géant avant de transitionner
+        vers les teintes du désert pour l'Acte 1.
+      
+      explosion:
+        time: 0.0  # t=12.0s global
+        initial_speed: 50.0  # m/s
+        deceleration: 2.0
+        flash_intensity: 2.0
+        
+      rainbow:
+        formation_start: 0.5   # t=12.5s
+        formation_end: 2.0     # t=14.0s
+        hold_end: 6.0          # t=18.0s
+        transition_end: 8.0    # t=20.0s
+        
+        dimensions:
+          width: 150.0
+          height: 60.0
+          curve_radius: 100.0
+          band_thickness: 8.0
+          
+        colors:
+          - name: "Violet"
+            rgb: [0.58, 0.0, 0.83]
+            drones: 143
+          - name: "Indigo"
+            rgb: [0.29, 0.0, 0.51]
+            drones: 143
+          - name: "Bleu"
+            rgb: [0.0, 0.0, 1.0]
+            drones: 143
+          - name: "Vert"
+            rgb: [0.0, 1.0, 0.0]
+            drones: 143
+          - name: "Jaune"
+            rgb: [1.0, 1.0, 0.0]
+            drones: 143
+          - name: "Orange"
+            rgb: [1.0, 0.65, 0.0]
+            drones: 143
+          - name: "Rouge"
+            rgb: [1.0, 0.0, 0.0]
+            drones: 142
+      
+      transition:
+        target: "Acte 1 - Désert"
+        desert_colors:
+          - name: "Sable"
+            rgb: [0.96, 0.64, 0.38]
+          - name: "Ocre"
+            rgb: [0.87, 0.53, 0.25]
+          - name: "Terre cuite"
+            rgb: [0.82, 0.41, 0.12]
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PALETTE DE COULEURS COMPLÈTE
+  # ─────────────────────────────────────────────────────────────────────────
+  colors:
+    bleu_nuit:
+      rgb: [0.0, 0.12, 0.25]
+      hex: "#001F40"
+      usage: "Fond ciel nocturne"
+      
+    blanc_pur:
+      rgb: [1.0, 1.0, 1.0]
+      hex: "#FFFFFF"
+      usage: "Étoiles, lettres A et M"
+      
+    orange_niger:
+      rgb: [1.0, 0.5, 0.0]
+      hex: "#FF8000"
+      usage: "Lettre N"
+      
+    vert_niger:
+      rgb: [0.0, 0.6, 0.2]
+      hex: "#009933"
+      usage: "Lettre E"
+      
+    or_soleil:
+      rgb: [1.0, 0.84, 0.0]
+      hex: "#FFD700"
+      usage: "Sphère cosmique pulsante"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SÉQUENCE CAMÉRA CINÉMATIQUE
+  # ─────────────────────────────────────────────────────────────────────────
+  camera:
+    phase_1:
+      name: "Vue subjective depuis le sol"
+      description: "Caméra au niveau sol, regardant le ciel étoilé avec tilt up"
+      start_distance: 250.0
+      end_distance: 300.0
+      pitch: [-5.0, -15.0]  # Regard vers le haut
+      yaw: [0.0, 5.0]
+      target_y: [50.0, 100.0]
+      lerp_speed: 0.5
+      
+    phase_2:
+      name: "Vue aérienne du texte"
+      description: "Vue à 200m d'altitude, zoom arrière pour voir ANEM"
+      start_distance: 180.0
+      end_distance: 300.0
+      pitch: [-8.0, -12.0]
+      yaw: [5.0, 15.0]
+      target_y: 80.0
+      lerp_speed: 0.6
+      
+    phase_3:
+      name: "Orbite autour de la sphère"
+      description: "Rapprochement et rotation autour du cœur cosmique"
+      start_distance: 120.0
+      end_distance: 80.0
+      pitch: [-12.0, 3.0]
+      orbit_rotation: 60.0  # degrés
+      lerp_speed: [0.8, 1.2]  # Accélère sur la dernière pulsation
+      
+    phase_4:
+      name: "Recul spectaculaire"
+      description: "Capture explosion puis arc-en-ciel"
+      
+      sub_phases:
+        explosion:
+          time: [12.0, 12.5]
+          distance: [80.0, 280.0]
+          pitch: [3.0, -5.0]
+          lerp_speed: 2.5
+          
+        rainbow_formation:
+          time: [12.5, 14.0]
+          distance: [280.0, 350.0]
+          pitch: [-5.0, -8.0]
+          lerp_speed: 1.0
+          
+        rainbow_hold:
+          time: [14.0, 18.0]
+          distance: 350.0
+          pitch: -8.0
+          orbit_rotation: 20.0
+          lerp_speed: 0.4
+          
+        transition:
+          time: [18.0, 20.0]
+          distance: [350.0, 380.0]
+          pitch: [-8.0, 7.0]
+          target_y: [70.0, 30.0]
+          lerp_speed: 0.5
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SYNCHRONISATION AUDIO
+  # ─────────────────────────────────────────────────────────────────────────
+  audio_sync:
+    events:
+      - time: 0.0
+        visual: "Ciel noir"
+        audio: "Silence total"
+        emotion: "Attente"
+        
+      - time: 0.5
+        visual: "1ère étoile"
+        audio: "Ping cristallin"
+        emotion: "Émerveillement"
+        
+      - time: 3.0
+        visual: "Début formation A"
+        audio: "Note grave (Do)"
+        emotion: "Anticipation"
+        
+      - time: 3.5
+        visual: "A complet"
+        audio: "Accord majeur (Do-Mi-Sol)"
+        emotion: "Satisfaction"
+        
+      - time: 4.5
+        visual: "N complet"
+        audio: "Note médium (Mi)"
+        emotion: "Continuité"
+        
+      - time: 5.5
+        visual: "E complet"
+        audio: "Note haute (Sol)"
+        emotion: "Élévation"
+        
+      - time: 6.5
+        visual: "M complet"
+        audio: "Accord complet (Do-Mi-Sol-Do)"
+        emotion: "Accomplissement"
+        
+      - time: 8.0
+        visual: "Convergence spirale"
+        audio: "Montée en tension"
+        emotion: "Suspense"
+        
+      - time: 9.0
+        visual: "Sphère formée"
+        audio: "Battement de cœur"
+        emotion: "Concentration"
+        
+      - time: 11.5
+        visual: "Pulsation max"
+        audio: "Silence..."
+        emotion: "Suspense extrême"
+        
+      - time: 12.0
+        visual: "EXPLOSION"
+        audio: "BOUM ! + Cymbales"
+        emotion: "Libération"
+        
+      - time: 12.5
+        visual: "Arc-en-ciel"
+        audio: "Harpe glissando"
+        emotion: "Éblouissement"
+        
+      - time: 18.0
+        visual: "Transition désert"
+        audio: "Fond musical désert"
+        emotion: "Calme avant la suite"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SYMBOLISME ET MESSAGE
+  # ─────────────────────────────────────────────────────────────────────────
+  symbolism:
+    level_1_literal: |
+      L'événement ANEM 2025 commence par une ouverture lumineuse.
+      
+    level_2_metaphorical: |
+      De l'obscurité naît la lumière, du chaos naît l'ordre,
+      de l'individualité naît l'unité.
+      
+    level_3_cultural: |
+      Comme les étoiles guidaient les nomades du Sahara,
+      ANEM guide les étudiants nigériens.
+      
+    level_4_emotional: |
+      Émerveillement → Reconnaissance → Anticipation → Exaltation → Sérénité
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PARAMÈTRES TECHNIQUES
+  # ─────────────────────────────────────────────────────────────────────────
+  technical:
+    performance:
+      target_fps: 60
+      vectorized: true
+      numpy_optimized: true
+      
+    micro_movements:
+      enabled: true
+      frequencies:
+        x: 1.5
+        y: 1.8
+        z: 2.2
+      amplitude: 0.3
+      
+    audio_reactivity:
+      enabled: true
+      beat_threshold: 0.65
+      beat_boost: 0.4
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # POURQUOI CETTE OUVERTURE FONCTIONNE
+  # ─────────────────────────────────────────────────────────────────────────
+  design_rationale:
+    - "✅ Commence SIMPLEMENT (1 drone) → pas de bug possible"
+    - "✅ Montre la MÉTHODE (points → formes) → éducatif"
+    - "✅ Utilise le TEXTE (ANEM) → reconnaissance immédiate"
+    - "✅ A un CLIMAX (explosion) → spectaculaire"
+    - "✅ Offre une TRANSITION (arc-en-ciel → désert) → fluide"
+    - "✅ Contrôlable PHASE par PHASE → débogage facile"
+    - "✅ Synchronisable avec AUDIO → impact maximal"
+    - "✅ Adapté à 1000 DRONES → chaque phase optimisée"
+    - "✅ RACONTE une HISTOIRE → narrative cohérente"
+    - "✅ FIDÈLE à l'IDENTITÉ ANEM → couleurs, symboles"

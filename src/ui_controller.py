@@ -188,15 +188,16 @@ class MainWindow(QMainWindow):
         opening_acts = [
             ("--- OUVERTURE (ACTES) ---", None),
             ("Acte 0: Silence Sacred", "act0_pre_opening"),
-            ("Acte I: Naissance (Dunes)", "act1_desert"),
-            ("Acte II: La Pluie Sacrée", "act2_sacred_rain"),
-            ("Acte III: Typographie", "act3_typography"),
-            ("Acte IV: Science & Beauté", "act4_science"),
-            ("Acte V: L'Ame Africaine", "act5_african_soul"),
-            ("Acte VI: Identité Sacrée", "act6_identity"),
-            ("Acte VII: Drapeau Géant", "act7_flag"),
-            ("Acte VIII: Finale Unity", "act8_finale"),
-            ("Acte IX: Eagle", "act9_eagle"),
+            ("Acte I: Dunes du Sahara", "act1_desert"),
+            ("Acte II: Désert S'éveille", "act2_desert_seveille"),
+            ("Acte III: Fleuve Niger", "act3_fleuve_niger"),
+            ("Acte IV: Typographie", "act3_typography"),
+            ("Acte V: Science & Beauté", "act4_science"),
+            ("Acte VI: L'Ame Africaine", "act5_african_soul"),
+            ("Acte VII: Identité Sacrée", "act6_identity"),
+            ("Acte VIII: Drapeau Géant", "act7_flag"),
+            ("Acte IX: Finale Unity", "act8_finale"),
+            ("Acte X: Eagle", "act9_eagle"),
         ]
 
         # 2. ORIGINAL PHASES (RECAP)

@@ -109,6 +109,11 @@ class FormationLibrary:
             self._cache[(phase_name, num_drones)] = result
             
         return result
+    
+    # Alias pour le chorégraphe professionnel
+    def generate_formation(self, phase_name, num_drones, **kwargs):
+        """Alias de get_phase pour compatibilité avec le chorégraphe."""
+        return self.get_phase(phase_name, num_drones, **kwargs)
 
     def _generate_phase(self, phase_name, num_drones, **kwargs):
         if phase_name == "phase1_pluie":
@@ -148,8 +153,14 @@ class FormationLibrary:
         elif phase_name == "act1_desert":
             t = kwargs.get('t', 0.0)
             return self._act_1_desert(num_drones, t)
+        elif phase_name == "act2_desert_seveille":
+            t = kwargs.get('t', 0.0)
+            return self._act_2_desert_seveille(num_drones, t)
         elif phase_name == "act2_sacred_rain":
-            return self._act_2_sacred_rain(num_drones)
+            # Redirige vers le nouveau nom
+            return self._act_3_fleuve_niger(num_drones)
+        elif phase_name == "act3_fleuve_niger":
+            return self._act_3_fleuve_niger(num_drones)
         elif phase_name == "act3_typography":
             # Monolithic typography in pure starry white
             return self._text_formation("NIGER", num_drones, self.colors["star_white"], scale_override=16.0)
@@ -541,163 +552,1137 @@ class FormationLibrary:
         return pos, sampled_colors
 
     def _act_0_pre_opening(self, num, t=0.0):
-        # "Voile cosmique" : rideau dense qui se replie et reste cadré
-        rng = np.random.default_rng(2025 + num)
-
-        curtain_width = 120.0
-        curtain_height = 220.0
-        curtain_z = 150.0  # rideau devant caméra (120-200m)
-        split_time = 3.0  # secondes d'ouverture du rideau
-
-        # Grille régulière dense (feuille pleine) avec léger jitter pour éviter la grille parfaite
-        nx = max(10, int(np.sqrt(num * 0.9)))
-        ny = max(12, int(num / nx) + 1)
-        grid_x = np.linspace(-curtain_width * 0.5, curtain_width * 0.5, nx)
-        grid_y = np.linspace(15.0, 15.0 + curtain_height, ny)
-        gx, gy = np.meshgrid(grid_x, grid_y)
-        coords = np.column_stack((gx.flatten(), gy.flatten()))
-        select = coords[:num]
-
-        base_x = select[:, 0] + rng.normal(0.0, 0.9, len(select))
-        base_y = select[:, 1] + rng.normal(0.0, 1.6, len(select))
-
-        # Drapé : plis doux via modulation sinusoïdale sur Z (et un léger contre-phase sur X)
-        fold_amp = 6.0
-        fold_freq_y = 0.055
-        fold_freq_x = 0.04
-        fold_phase = t * 0.35
-        fold_z = np.sin(base_y * fold_freq_y + fold_phase) * fold_amp
-        fold_z += np.sin(base_x * fold_freq_x - fold_phase * 0.7) * (fold_amp * 0.4)
-
-        base_z = curtain_z + fold_z + rng.normal(0.0, 1.8, len(select))
-
+        """
+        🎭 ACTE 0 : LE CIEL S'ÉVEILLE - Vision Réaliste
+        
+        Philosophie "CIEL RÉALISTE" :
+        - Horizon = 0m (niveau yeux spectateur)
+        - Sol suggéré = -20m à 0m
+        - Ciel des drones = 15m à 100m (zone d'action)
+        - Aucun drone ne passe en dessous de y=15m
+        
+        TIMELINE (20s total):
+        - PHASE 1 (0-3s)   : ÉTOILES NAISSANTES (20-40m) - Juste au-dessus des arbres
+        - PHASE 2 (3-8s)   : ANEM LUMINEUX (30m) - Texte visible et grand
+        - PHASE 3 (8-12s)  : ORBE SOLAIRE (60m) - Sphère dorée à hauteur raisonnable
+        - PHASE 4 (12-20s) : ARC-EN-CIEL TERRESTRE (15-45m) - Comme un pont au-dessus du public
+        
+        Args:
+            num: Nombre de drones (1000)
+            t: Temps écoulé depuis le début de l'acte
+            
+        Returns:
+            (positions, colors) - Arrays numpy pour les 1000 drones
+        """
+        rng = np.random.default_rng(2025)
+        
+        # ═══════════════════════════════════════════════════════════════
+        # PARAMÈTRES DE CONFIGURATION - ALTITUDES RÉALISTES
+        # ═══════════════════════════════════════════════════════════════
+        
+        # Timing des phases (en secondes)
+        PHASE_1_END = 3.0      # Nuit primordiale
+        PHASE_2_END = 8.0      # Constellation ANEM
+        PHASE_3_END = 12.0     # Cœur cosmique
+        PHASE_4_END = 20.0     # Éclosion finale
+        
+        # NOUVELLES ALTITUDES RÉALISTES
+        ALTITUDE_ETOILES = 30.0      # Phase 1: 20-40m (moyenne 30m)
+        ALTITUDE_TEXTE = 35.0        # Phase 2: Texte ANEM à 35m
+        ALTITUDE_SPHERE = 60.0       # Phase 3: Sphère à 60m
+        ALTITUDE_ARC_BASE = 20.0     # Phase 4: Arc-en-ciel 20-50m
+        ALTITUDE_ARC_MAX = 50.0
+        
+        # Niveau minimum absolu (au-dessus du sol/eau)
+        GROUND_CLEARANCE = 15.0
+        
+        # Couleurs principales
+        BLEU_NUIT = np.array([0.0, 0.12, 0.25])
+        BLANC = np.array([1.0, 1.0, 1.0])
+        ORANGE_NIGER = np.array([1.0, 0.5, 0.0])
+        VERT_NIGER = np.array([0.0, 0.6, 0.2])
+        OR_SOLEIL = np.array([1.0, 0.84, 0.0])
+        
+        # Arc-en-ciel (7 couleurs)
+        RAINBOW_COLORS = np.array([
+            [0.58, 0.0, 0.83],   # Violet
+            [0.29, 0.0, 0.51],   # Indigo
+            [0.0, 0.0, 1.0],     # Bleu
+            [0.0, 1.0, 0.0],     # Vert
+            [1.0, 1.0, 0.0],     # Jaune
+            [1.0, 0.65, 0.0],    # Orange
+            [1.0, 0.0, 0.0],     # Rouge
+        ])
+        
+        # ═══════════════════════════════════════════════════════════════
+        # DÉTERMINATION DE LA PHASE COURANTE
+        # ═══════════════════════════════════════════════════════════════
+        
+        if t < PHASE_1_END:
+            current_phase = "NUIT_PRIMORDIALE"
+            phase_progress = t / PHASE_1_END
+        elif t < PHASE_2_END:
+            current_phase = "CONSTELLATION_ANEM"
+            phase_progress = (t - PHASE_1_END) / (PHASE_2_END - PHASE_1_END)
+        elif t < PHASE_3_END:
+            current_phase = "COEUR_COSMIQUE"
+            phase_progress = (t - PHASE_2_END) / (PHASE_3_END - PHASE_2_END)
+        else:
+            current_phase = "ECLOSION_FINALE"
+            phase_progress = min(1.0, (t - PHASE_3_END) / (PHASE_4_END - PHASE_3_END))
+        
+        # Initialisation des arrays
         pos = np.zeros((num, 3))
-        pos[:, 0] = base_x
-        pos[:, 1] = base_y
-        pos[:, 2] = base_z
-
-        left_mask = base_x < 0.0
-        dust_mask = rng.random(num) > 0.995  # Quelques poussières seulement
-
-        # Ouverture du rideau (split latéral)
-        split_progress = np.clip(t / split_time, 0.0, 1.0)
-        split_ease = split_progress * split_progress * (3.0 - 2.0 * split_progress)
-        # Maintient le centre fermé au début pour éviter un trou
-        hold_center = np.clip((t - 1.1) / 0.9, 0.0, 1.0)
-        split_ease *= hold_center
-        max_offset = 70.0
-        pos[left_mask, 0] -= split_ease * max_offset
-        pos[~left_mask, 0] += split_ease * max_offset
-
-        # Courbure légère en S sur la profondeur pour un effet soyeux
-        s_wave = np.sin(base_y * 0.045 + t * 0.7) * 2.4 * (0.4 + 0.6 * split_ease)
-        pos[:, 2] += s_wave * np.sign(base_x + 1e-3)
-
-        # Vibration verticale tant que le rideau est fermé
-        ripple = np.sin(base_x * 0.02 + t * 2.0) * 1.4 * (1.0 - split_ease)
-        pos[:, 1] += ripple
-
-        # Poussières qui restent près du centre après l'ouverture
-        dust_progress = np.clip((t - split_time) / 1.0, 0.0, 1.0)
-        pos[dust_mask, 0] *= 1.0 - dust_progress * 0.6
-        pos[dust_mask, 2] = curtain_z + np.sin(t * 1.2 + pos[dust_mask, 0] * 0.01) * 6.0
-        pos[dust_mask, 1] += np.sin(t * 1.5 + pos[dust_mask, 0] * 0.05) * 5.0
-
-        # Couleurs
-        cols = np.tile(self.colors["star_blue"], (num, 1))
-        # Gradient vertical : plus lumineux en bas
-        y_norm = np.clip((pos[:, 1] - 15.0) / curtain_height, 0.0, 1.0)
-        base_intensity = 0.22 + 0.18 * (1.0 - split_ease)
-        base_intensity *= 0.9 + 0.35 * (1.0 - y_norm)
-        cols *= base_intensity[:, None]
-
-        # Points lumineux (20%) qui pulsent légèrement
-        bright_mask = rng.random(num) > 0.8
-        pulse = 1.2 + 0.3 * np.sin(t * 2.2 + base_x * 0.05)
-        blanc = np.array(self.colors["blanc_pure"], dtype=float)
-        cols[bright_mask] = blanc * pulse[bright_mask, None]
-
-        # Filament central brillant pendant l'ouverture
-        filament_mask = (~dust_mask) & (np.abs(pos[:, 0]) < 12.0) & (split_ease > 0.45)
-        cols[filament_mask] = blanc * 1.6
-
-        # Poussières adoucies
-        cols[dust_mask] *= 0.65
-
-        # Extinction progressive après 5.5s
-        fade = 1.0 - np.clip((t - 5.5) / 1.5, 0.0, 1.0)
-        cols *= max(fade, 0.0)
-
+        cols = np.zeros((num, 3))
+        
+        # ═══════════════════════════════════════════════════════════════
+        # PHASE 1 : ÉTOILES NAISSANTES (0-3s) - Altitude 20-40m
+        # "Juste au-dessus des arbres, comme si le ciel s'allumait"
+        # ═══════════════════════════════════════════════════════════════
+        
+        if current_phase == "NUIT_PRIMORDIALE":
+            # Nombre d'étoiles visibles (progression exponentielle)
+            visible_stars = int(min(100, 1 + t * t * 11))
+            
+            # Positions dans un dôme bas (20-40m de hauteur)
+            # Distribution horizontale large, verticale limitée
+            phi = rng.uniform(0, 2 * np.pi, num)
+            r_horizontal = rng.uniform(20, 120, num)  # Rayon horizontal large
+            
+            pos[:, 0] = r_horizontal * np.cos(phi)
+            pos[:, 1] = rng.uniform(20, 40, num)  # ALTITUDE BASSE : 20-40m
+            pos[:, 2] = r_horizontal * np.sin(phi)
+            
+            # Couleurs: étoiles blanches scintillantes sur fond nuit
+            cols[:, :] = BLEU_NUIT * 0.3  # Base très sombre
+            
+            # Seuls les premiers 'visible_stars' drones sont visibles
+            visible_mask = np.arange(num) < visible_stars
+            
+            # Effet scintillement
+            twinkle = 0.7 + 0.3 * np.sin(t * 5.0 + np.arange(num) * 0.5)
+            cols[visible_mask] = BLANC * twinkle[visible_mask, None]
+            
+            # Première étoile plus brillante
+            if visible_stars >= 1:
+                cols[0] = BLANC * 1.5
+        
+        # ═══════════════════════════════════════════════════════════════
+        # PHASE 2 : ANEM LUMINEUX (3-8s) - Altitude 35m, PLUS GRAND
+        # "Texte géant visible depuis le sol, comme un néon dans le ciel"
+        # ═══════════════════════════════════════════════════════════════
+        
+        elif current_phase == "CONSTELLATION_ANEM":
+            local_t = t - PHASE_1_END
+            
+            # Timing des lettres
+            LETTER_A_START = 0.0
+            LETTER_N_START = 1.0
+            LETTER_E_START = 2.0
+            LETTER_M_START = 3.0
+            
+            # Nombre de drones par lettre
+            DRONES_PER_LETTER = 200
+            
+            # DIMENSIONS PLUS GRANDES pour visibilité depuis le sol
+            text_width = 120.0      # 120m de large (comme un terrain de foot)
+            text_height = 50.0      # 50m de haut
+            letter_spacing = 15.0
+            letter_width = 22.0     # Lettres plus larges
+            base_y = ALTITUDE_TEXTE  # 35m d'altitude
+            
+            # Fonctions de création des lettres (mêmes formes, nouvelle altitude)
+            def create_letter_A(n_points, x_offset):
+                pts = np.zeros((n_points, 3))
+                for i in range(n_points):
+                    t_param = i / n_points
+                    if t_param < 0.4:
+                        pts[i] = [x_offset - letter_width/2 + t_param * letter_width * 1.25, 
+                                  base_y + t_param * 2.5 * text_height, 0]
+                    elif t_param < 0.5:
+                        pts[i] = [x_offset - letter_width/4 + (t_param - 0.4) * letter_width * 2.5, 
+                                  base_y + text_height * 0.5, 0]
+                    else:
+                        pts[i] = [x_offset + letter_width/2 - (t_param - 0.5) * letter_width * 1.25, 
+                                  base_y + (t_param - 0.5) * 2 * text_height, 0]
+                return pts
+            
+            def create_letter_N(n_points, x_offset):
+                pts = np.zeros((n_points, 3))
+                for i in range(n_points):
+                    t_param = i / n_points
+                    if t_param < 0.33:
+                        pts[i] = [x_offset - letter_width/2, base_y + t_param * 3 * text_height, 0]
+                    elif t_param < 0.66:
+                        pts[i] = [x_offset - letter_width/2 + (t_param - 0.33) * 3 * letter_width,
+                                  base_y + text_height - (t_param - 0.33) * 3 * text_height, 0]
+                    else:
+                        pts[i] = [x_offset + letter_width/2, base_y + (t_param - 0.66) * 3 * text_height, 0]
+                return pts
+            
+            def create_letter_E(n_points, x_offset):
+                pts = np.zeros((n_points, 3))
+                for i in range(n_points):
+                    t_param = i / n_points
+                    if t_param < 0.25:
+                        pts[i] = [x_offset - letter_width/2 + t_param * 4 * letter_width, base_y + text_height, 0]
+                    elif t_param < 0.5:
+                        pts[i] = [x_offset - letter_width/2, base_y + text_height - (t_param - 0.25) * 4 * text_height, 0]
+                    elif t_param < 0.75:
+                        pts[i] = [x_offset - letter_width/2 + (t_param - 0.5) * 3 * letter_width, base_y + text_height * 0.5, 0]
+                    else:
+                        pts[i] = [x_offset - letter_width/2 + (t_param - 0.75) * 4 * letter_width, base_y, 0]
+                return pts
+            
+            def create_letter_M(n_points, x_offset):
+                pts = np.zeros((n_points, 3))
+                for i in range(n_points):
+                    t_param = i / n_points
+                    if t_param < 0.25:
+                        pts[i] = [x_offset - letter_width/2, base_y + t_param * 4 * text_height, 0]
+                    elif t_param < 0.5:
+                        pts[i] = [x_offset - letter_width/2 + (t_param - 0.25) * 2 * letter_width,
+                                  base_y + text_height - (t_param - 0.25) * 2 * text_height, 0]
+                    elif t_param < 0.75:
+                        pts[i] = [x_offset + (t_param - 0.5) * 2 * letter_width,
+                                  base_y + text_height * 0.5 + (t_param - 0.5) * 2 * text_height, 0]
+                    else:
+                        pts[i] = [x_offset + letter_width/2, base_y + text_height - (t_param - 0.75) * 4 * text_height, 0]
+                return pts
+            
+            # Positions X des lettres (bien espacées)
+            letter_positions = [-52, -17, 17, 52]  # 4 lettres centrées
+            
+            # Créer les positions pour chaque lettre
+            letter_A_pos = create_letter_A(DRONES_PER_LETTER, letter_positions[0])
+            letter_N_pos = create_letter_N(DRONES_PER_LETTER, letter_positions[1])
+            letter_E_pos = create_letter_E(DRONES_PER_LETTER, letter_positions[2])
+            letter_M_pos = create_letter_M(DRONES_PER_LETTER, letter_positions[3])
+            
+            # Positions initiales (étoiles dispersées à basse altitude)
+            initial_pos = np.zeros((num, 3))
+            phi = rng.uniform(0, 2 * np.pi, num)
+            r = rng.uniform(30, 100, num)
+            initial_pos[:, 0] = r * np.cos(phi)
+            initial_pos[:, 1] = rng.uniform(20, 45, num)  # Basse altitude
+            initial_pos[:, 2] = r * np.sin(phi) * 0.5
+            
+            # Interpolation ease-out cubic
+            def ease_out_cubic(x):
+                return 1.0 - pow(1.0 - x, 3)
+            
+            def get_letter_progress(start_time, duration=0.8):
+                if local_t < start_time:
+                    return 0.0
+                return min(1.0, (local_t - start_time) / duration)
+            
+            progress_A = ease_out_cubic(get_letter_progress(LETTER_A_START))
+            progress_N = ease_out_cubic(get_letter_progress(LETTER_N_START))
+            progress_E = ease_out_cubic(get_letter_progress(LETTER_E_START))
+            progress_M = ease_out_cubic(get_letter_progress(LETTER_M_START))
+            
+            # Assigner les drones aux lettres
+            # Lettre A (0-199)
+            pos[0:200] = initial_pos[0:200] * (1 - progress_A) + letter_A_pos * progress_A
+            cols[0:200] = BLANC * (0.2 + 0.8 * progress_A)
+            
+            # Lettre N (200-399)
+            pos[200:400] = initial_pos[200:400] * (1 - progress_N) + letter_N_pos * progress_N
+            cols[200:400] = ORANGE_NIGER * (0.2 + 0.8 * progress_N)
+            
+            # Lettre E (400-599)
+            pos[400:600] = initial_pos[400:600] * (1 - progress_E) + letter_E_pos * progress_E
+            cols[400:600] = VERT_NIGER * (0.2 + 0.8 * progress_E)
+            
+            # Lettre M (600-799)
+            pos[600:800] = initial_pos[600:800] * (1 - progress_M) + letter_M_pos * progress_M
+            cols[600:800] = BLANC * (0.2 + 0.8 * progress_M)
+            
+            # Étoiles de fond (800-999)
+            pos[800:] = initial_pos[800:]
+            twinkle = 0.3 + 0.2 * np.sin(t * 3.0 + np.arange(800, num) * 0.3)
+            cols[800:] = BLANC * twinkle[:, None]
+            
+            # Pulsation après formation complète
+            if local_t > 4.0:
+                pulse = 1.0 + 0.15 * np.sin((local_t - 4.0) * 2 * np.pi)
+                cols[:800] *= pulse
+            
+            # Jitter organique
+            pos += rng.normal(0, 0.3, (num, 3))
+        
+        # ═══════════════════════════════════════════════════════════════
+        # PHASE 3 : ORBE SOLAIRE (8-12s) - Altitude 60m
+        # "Sphère dorée pulsante à hauteur raisonnable"
+        # ═══════════════════════════════════════════════════════════════
+        
+        elif current_phase == "COEUR_COSMIQUE":
+            local_t = t - PHASE_2_END
+            CENTER = np.array([0.0, ALTITUDE_SPHERE, 0.0])  # 60m
+            
+            base_radius = 25.0  # Sphère de 25m de rayon
+            
+            # Convergence spirale (0-1s)
+            if local_t < 1.0:
+                convergence = local_t
+                
+                # Positions initiales (depuis les lettres ANEM)
+                phi_init = rng.uniform(0, 2 * np.pi, num)
+                r_init = rng.uniform(40, 80, num)
+                y_init = rng.uniform(25, 55, num)  # Altitude du texte
+                
+                # Spirale vers le centre
+                spiral_angle = convergence * 4 * np.pi + np.arange(num) * 0.01
+                final_r = r_init * (1 - convergence) + base_radius * convergence
+                
+                pos[:, 0] = final_r * np.cos(phi_init + spiral_angle) * (1 - convergence * 0.5)
+                pos[:, 1] = y_init * (1 - convergence) + CENTER[1] * convergence
+                pos[:, 2] = final_r * np.sin(phi_init + spiral_angle) * (1 - convergence * 0.5)
+                
+                cols[:] = OR_SOLEIL * (0.5 + 0.5 * convergence)
+            
+            else:
+                # Sphère formée avec pulsations
+                phi = rng.uniform(0, 2 * np.pi, num)
+                cos_theta = rng.uniform(-1, 1, num)
+                theta = np.arccos(cos_theta)
+                
+                # Trois pulsations de cœur
+                pulse_t = local_t - 1.0
+                pulse1 = np.exp(-((pulse_t - 0.5) ** 2) / 0.05) * 5.0
+                pulse2 = np.exp(-((pulse_t - 1.5) ** 2) / 0.05) * 7.0
+                pulse3 = np.exp(-((pulse_t - 2.5) ** 2) / 0.05) * 10.0
+                
+                total_pulse = pulse1 + pulse2 + pulse3
+                current_radius = base_radius * (1.0 + total_pulse * 0.08)
+                
+                pos[:, 0] = CENTER[0] + current_radius * np.sin(theta) * np.cos(phi)
+                pos[:, 1] = CENTER[1] + current_radius * np.sin(theta) * np.sin(phi)
+                pos[:, 2] = CENTER[2] + current_radius * np.cos(theta)
+                
+                base_intensity = 1.0 + total_pulse * 0.4
+                cols[:] = OR_SOLEIL * base_intensity
+                cols = np.clip(cols, 0, 2.5)
+        
+        # ═══════════════════════════════════════════════════════════════
+        # PHASE 4 : ARC-EN-CIEL TERRESTRE (12-20s) - Altitude 20-50m
+        # "Comme un pont lumineux au-dessus du public"
+        # ═══════════════════════════════════════════════════════════════
+        
+        elif current_phase == "ECLOSION_FINALE":
+            local_t = t - PHASE_3_END
+            
+            EXPLOSION_DURATION = 0.5
+            RAINBOW_FORM_END = 2.0
+            RAINBOW_HOLD_END = 6.0
+            TRANSITION_END = 8.0
+            
+            # Arc-en-ciel BAS et LARGE (comme un pont)
+            rainbow_width = 140.0   # 140m de large
+            arc_base_height = 20.0  # Base à 20m
+            arc_max_height = 50.0   # Sommet à 50m
+            arc_z_position = -20.0  # DEVANT le spectateur
+            
+            # Explosion (0-0.5s)
+            if local_t < EXPLOSION_DURATION:
+                explosion_progress = local_t / EXPLOSION_DURATION
+                
+                # Direction depuis le centre (60m)
+                phi = rng.uniform(0, 2 * np.pi, num)
+                theta = rng.uniform(0.3, 1.2, num)  # Principalement vers le bas/côtés
+                
+                initial_speed = 40.0
+                distance = initial_speed * explosion_progress * (0.7 + 0.3 * rng.uniform(0, 1, num))
+                
+                pos[:, 0] = distance * np.sin(theta) * np.cos(phi)
+                pos[:, 1] = ALTITUDE_SPHERE + distance * np.cos(theta) * 0.3  # Descend
+                pos[:, 2] = distance * np.sin(theta) * np.sin(phi)
+                
+                flash_intensity = 2.0 * (1 - explosion_progress) + 1.0
+                cols[:] = BLANC * flash_intensity
+            
+            # Formation arc-en-ciel BAS (0.5-2.0s)
+            elif local_t < RAINBOW_FORM_END:
+                form_progress = (local_t - EXPLOSION_DURATION) / (RAINBOW_FORM_END - EXPLOSION_DURATION)
+                form_ease = form_progress * form_progress * (3.0 - 2.0 * form_progress)
+                
+                drones_per_band = num // 7
+                
+                # Position explosée
+                exploded_pos = np.zeros((num, 3))
+                phi = rng.uniform(0, 2 * np.pi, num)
+                r = 30 + 30 * rng.uniform(0, 1, num)
+                exploded_pos[:, 0] = r * np.cos(phi)
+                exploded_pos[:, 1] = 40 + r * rng.uniform(-0.3, 0.3, num)
+                exploded_pos[:, 2] = r * np.sin(phi) * 0.5
+                
+                # Position finale : arc-en-ciel BAS
+                rainbow_pos = np.zeros((num, 3))
+                
+                for band_idx in range(7):
+                    start_idx = band_idx * drones_per_band
+                    end_idx = start_idx + drones_per_band if band_idx < 6 else num
+                    band_count = end_idx - start_idx
+                    
+                    # Arc de cercle horizontal (pont)
+                    arc_angles = np.linspace(0, np.pi, band_count)
+                    band_height_offset = band_idx * 4  # Bandes empilées
+                    
+                    rainbow_pos[start_idx:end_idx, 0] = (rainbow_width / 2) * np.cos(arc_angles)
+                    # Hauteur : arc de 20m à 50m
+                    rainbow_pos[start_idx:end_idx, 1] = arc_base_height + np.sin(arc_angles) * (arc_max_height - arc_base_height) + band_height_offset
+                    rainbow_pos[start_idx:end_idx, 2] = arc_z_position + rng.uniform(-2, 2, band_count)
+                    
+                    cols[start_idx:end_idx] = RAINBOW_COLORS[band_idx]
+                
+                pos = exploded_pos * (1 - form_ease) + rainbow_pos * form_ease
+                cols *= (0.5 + 0.5 * form_ease)
+            
+            # Arc-en-ciel stable BAS (2.0-6.0s)
+            elif local_t < RAINBOW_HOLD_END:
+                drones_per_band = num // 7
+                
+                for band_idx in range(7):
+                    start_idx = band_idx * drones_per_band
+                    end_idx = start_idx + drones_per_band if band_idx < 6 else num
+                    band_count = end_idx - start_idx
+                    
+                    arc_angles = np.linspace(0, np.pi, band_count)
+                    band_height_offset = band_idx * 4
+                    
+                    # Légère ondulation vivante
+                    wave = np.sin(arc_angles * 2 + t * 0.5) * 1.5
+                    
+                    pos[start_idx:end_idx, 0] = (rainbow_width / 2) * np.cos(arc_angles)
+                    pos[start_idx:end_idx, 1] = arc_base_height + np.sin(arc_angles) * (arc_max_height - arc_base_height) + band_height_offset + wave
+                    pos[start_idx:end_idx, 2] = arc_z_position + np.sin(arc_angles * 3 + t * 0.3) * 2.0
+                    
+                    pulse = 0.9 + 0.1 * np.sin(t * 2.0 + band_idx * 0.5)
+                    cols[start_idx:end_idx] = RAINBOW_COLORS[band_idx] * pulse
+            
+            # Transition vers désert (6.0-8.0s)
+            else:
+                transition_progress = (local_t - RAINBOW_HOLD_END) / (TRANSITION_END - RAINBOW_HOLD_END)
+                transition_ease = transition_progress * transition_progress
+                
+                drones_per_band = num // 7
+                
+                DESERT_COLORS = np.array([
+                    [0.96, 0.64, 0.38],
+                    [0.87, 0.53, 0.25],
+                    [0.82, 0.41, 0.12],
+                ])
+                
+                for band_idx in range(7):
+                    start_idx = band_idx * drones_per_band
+                    end_idx = start_idx + drones_per_band if band_idx < 6 else num
+                    band_count = end_idx - start_idx
+                    
+                    arc_angles = np.linspace(0, np.pi, band_count)
+                    
+                    # Arc qui s'aplatit en ligne ondulante (dunes)
+                    base_x = (rainbow_width / 2) * np.cos(arc_angles)
+                    target_x = np.linspace(-80, 80, band_count)  # Ligne droite élargie
+                    
+                    base_y = arc_base_height + np.sin(arc_angles) * (arc_max_height - arc_base_height)
+                    target_y = 25.0 + np.sin(np.linspace(0, 4*np.pi, band_count)) * 8  # Dunes
+                    
+                    pos[start_idx:end_idx, 0] = base_x * (1 - transition_ease) + target_x * transition_ease
+                    pos[start_idx:end_idx, 1] = base_y * (1 - transition_ease) + target_y * transition_ease
+                    pos[start_idx:end_idx, 2] = arc_z_position + transition_ease * 30
+                    
+                    desert_color = DESERT_COLORS[band_idx % 3]
+                    cols[start_idx:end_idx] = RAINBOW_COLORS[band_idx] * (1 - transition_ease) + desert_color * transition_ease
+                    cols[start_idx:end_idx] *= (1.0 - transition_ease * 0.2)
+        
+        # ═══════════════════════════════════════════════════════════════
+        # MICRO-MOUVEMENTS ORGANIQUES
+        # ═══════════════════════════════════════════════════════════════
+        
+        micro_x = np.sin(t * 1.5 + np.arange(num) * 0.01) * 0.3
+        micro_y = np.cos(t * 1.8 + np.arange(num) * 0.015) * 0.25
+        micro_z = np.sin(t * 2.2 + np.arange(num) * 0.02) * 0.2
+        
+        pos[:, 0] += micro_x
+        pos[:, 1] += micro_y
+        pos[:, 2] += micro_z
+        
+        # ═══════════════════════════════════════════════════════════════
+        # CONTRAINTE DE SOL ABSOLUE - Jamais sous 15m
+        # ═══════════════════════════════════════════════════════════════
+        pos[:, 1] = np.maximum(pos[:, 1], GROUND_CLEARANCE)
+        
+        # ═══════════════════════════════════════════════════════════════
+        # AUDIO-RÉACTIVITÉ
+        # ═══════════════════════════════════════════════════════════════
+        
+        audio_energy = getattr(self, 'audio_energy', 0.5)
+        if audio_energy > 0.65:
+            cols *= (1.0 + (audio_energy - 0.65) * 0.4)
+        
+        cols = np.clip(cols, 0.0, 3.0)
+        
         return pos, cols
 
     def _act_1_desert(self, num, t=0.0):
-        # Desert Birth (Le Désert Vivant) - Advanced "Respirant" Dunes
-        # Audio-reactive modulation placeholders (bass impacts height, mid impacts ripples)
-        # In a real live system, these would come from FFT analysis.
-        bass_energy = 0.5 + 0.3 * np.sin(t * 3.0) # Fake bass
+        """
+        ACTE 1 : DUNES DU SAHARA - Version Simple et Élégante
+        Grille avec sculpture sinusoïdale, motifs Touareg
+        """
+        bass_energy = 0.5 + 0.3 * np.sin(t * 3.0)
         
-        # 1. Grille de base (Optimisé)
-        grid_side = int(np.sqrt(num))
-        # Expand grid slightly to ensure full coverage
-        x = np.linspace(-250, 250, grid_side)
-        z = np.linspace(-250, 250, grid_side)
+        # 1. Grille de base
+        grid_side = int(np.ceil(np.sqrt(num))) + 1
+        x = np.linspace(-120, 120, grid_side)
+        z = np.linspace(-120, 120, grid_side)
         xv, zv = np.meshgrid(x, z)
         
-        # Aplatir pour avoir (N, 3)
         pos = np.zeros((num, 3))
         flat_x = xv.flatten()
         flat_z = zv.flatten()
         
-        # Handle count mismatch (grid square vs num)
-        count = min(len(flat_x), num)
+        pos[:, 0] = flat_x[:num]
+        pos[:, 2] = flat_z[:num]
         
-        pos[:count, 0] = flat_x[:count]
-        pos[:count, 2] = flat_z[:count]
-        
-        # 2. Sculpture des Dunes (Multi-Layer Noise simulé par Sin/Cos composites)
-        # Layer 1 : Grandes Dunes (Lent, Respirant)
-        # Layer 2 : Rides de sable (Rapide, Vif)
-        
+        # 2. Sculpture des Dunes (Multi-Layer)
         amp_bass = 1.0 + bass_energy * 1.5 
         
-        freq_dune = 0.025
-        freq_ripple = 0.15
+        freq_dune = 0.04
+        freq_ripple = 0.12
         
-        # Main waving dunes
-        y_dunes = 15.0 * np.sin(pos[:count, 0] * freq_dune + t * 0.4) * np.cos(pos[:count, 2] * freq_dune + t * 0.2)
+        # Grandes dunes respirantes (hauteur réaliste 15-45m)
+        y_dunes = 20.0 * np.sin(pos[:, 0] * freq_dune + t * 0.5) * np.cos(pos[:, 2] * freq_dune + t * 0.3)
         
-        # Fast ripples (wind effect)
-        y_ripples = 4.0 * np.sin(pos[:count, 0] * freq_ripple + pos[:count, 2] * freq_ripple + t * 2.0)
+        # Dunes secondaires
+        y_dunes2 = 10.0 * np.sin(pos[:, 0] * 0.06 + pos[:, 2] * 0.04 + t * 0.4)
         
-        # Application avec modulation audio
-        pos[:count, 1] = 10.0 + (y_dunes * amp_bass) + y_ripples
+        # Rides de sable (vent)
+        y_ripples = 3.0 * np.sin(pos[:, 0] * freq_ripple + pos[:, 2] * freq_ripple + t * 2.5)
+        
+        # Base à 20m d'altitude
+        pos[:, 1] = 20.0 + (y_dunes + y_dunes2) * amp_bass + y_ripples
 
-        # 3. Mapping Motif Sahélien (Croix d'Agadez / Losanges Géométriques)
+        # 3. Couleurs - Motif Sahélien
         cols = np.tile(self.colors["soleil_or"], (num, 1))
         
-        # Motif : Bandes Diagonales (Zébrures Touareg)
-        # Arithmétique modulaire sur les coordonnées world
-        # |x + z| % spacing < width
-        # Use full length mask initialized to False
-        pattern_mask = np.zeros(num, dtype=bool)
-        pattern_mask[:count] = (np.abs(pos[:count, 0] + pos[:count, 2]) % 60.0) < 20.0
+        # Bandes diagonales (Zébrures Touareg)
+        pattern_mask = (np.abs(pos[:, 0] + pos[:, 2]) % 50.0) < 18.0
         
-        # Motif : Centres de "diamants" (Sommets locaux) detecté par hauteur
-        peaks_mask = np.zeros(num, dtype=bool)
-        peaks_mask[:count] = pos[:count, 1] > (10.0 + 10.0 * amp_bass) # Sommets des dunes
+        # Sommets brillants
+        peaks_mask = pos[:, 1] > (25.0 + 12.0 * amp_bass)
         
-        # Application Couleurs
-        # Base: Soleil Or
-        # Pattern: Orange Niger (Sable profond)
-        # Peaks: Blanc Pur (Éclat Solaire / Reflet)
-        
+        # Application couleurs
         cols[pattern_mask] = self.colors["orange_niger"] 
-        cols[peaks_mask] = self.colors["blanc_pure"]     
+        cols[peaks_mask] = self.colors["blanc_pure"]
+        
+        # Contrainte de sol - minimum 10m
+        pos[:, 1] = np.maximum(pos[:, 1], 10.0)
         
         return pos, cols
 
-    def _act_2_sacred_rain(self, num):
-        # Sacred Rain -> LE FLEUVE NIGER (The Niger River)
+    def _act_2_desert_seveille(self, num, t=0.0):
+        """
+        ═══════════════════════════════════════════════════════════════════════
+        ACTE 2 : LE DÉSERT S'ÉVEILLE - NAISSANCE DES DUNES
+        ═══════════════════════════════════════════════════════════════════════
+        
+        Le désert se crée sous nos yeux, grain par grain, jusqu'à former
+        un Sahara nigérien VIVANT et RESPIRANT.
+        
+        CHRONOLOGIE (15 secondes):
+        ─────────────────────────────────────────────────────────────────────
+        PARTIE 1 - NAISSANCE DU SABLE (0-4s)
+          0-1s : Nuage de grains apparaît (poussière cosmique)
+          1-2s : Sédimentation (grains tombent par gravité)
+          2-3s : Premières rides se forment
+          3-4s : Organisation en micro-dunes
+        
+        PARTIE 2 - CROISSANCE DES DUNES (4-9s)
+          4-5s : Dunes barkhanes émergent (croissants migrants)
+          5-6s : Dunes transversales se gonflent (respirantes)
+          6-7s : Dune étoilée commence à tourner
+          7-8s : Erg ondulant entre en danse
+          8s   : LA CARAVANE APPARAÎT à l'horizon
+        
+        PARTIE 3 - VIE DU DÉSERT (9-13s)
+          9-10s  : Vent dominant s'installe + rafales
+          10-11s : Vague de sable traverse l'écran
+          11-13s : Couleurs virent au coucher de soleil
+        
+        PARTIE 4 - TRANSITION MAGIQUE (13-15s)
+          13-14s : Dunes s'aplatissent progressivement
+          14-15s : Forme de fleuve apparaît → ACTE 3
+        ═══════════════════════════════════════════════════════════════════════
+        """
+        
+        # Générateur reproductible
+        rng = np.random.default_rng(42)
+        
+        # Initialisation
+        pos = np.zeros((num, 3))
+        cols = np.zeros((num, 3))
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # PALETTE "DÉSERT VIVANT"
+        # ═══════════════════════════════════════════════════════════════════
+        SABLE_HUMIDE = np.array([0.75, 0.45, 0.15])    # Bas des dunes
+        SABLE_MOYEN = np.array([0.85, 0.55, 0.25])     # Flancs
+        SABLE_SEC = np.array([0.95, 0.65, 0.35])       # Hauts
+        CRETE_SOLEIL = np.array([1.0, 0.75, 0.45])     # Crêtes ensoleillées
+        ORANGE_NIGER = np.array([1.0, 0.5, 0.0])       # Identité nationale
+        OR_COUCHANT = np.array([1.0, 0.4, 0.1])        # Coucher de soleil
+        VIOLET_OMBRE = np.array([0.5, 0.25, 0.4])      # Ombres profondes
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # SYSTÈME DE VENT GLOBAL
+        # ═══════════════════════════════════════════════════════════════════
+        vent_direction_x = np.cos(t * 0.1) * 0.8 + 0.2
+        vent_direction_z = np.sin(t * 0.08) * 0.4
+        vent_vitesse = 0.8 + np.sin(t * 0.3) * 0.4
+        turbulence = 0.5 + np.sin(t * 0.7) * 0.3
+        
+        # Position du "soleil" virtuel pour l'éclairage
+        soleil_altitude = 30 + np.sin(t * 0.1) * 10
+        soleil_azimuth = t * 0.2
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # PARTIE 1 : NAISSANCE DU SABLE (0-4s)
+        # ═══════════════════════════════════════════════════════════════════
+        if t < 4.0:
+            
+            # Phase 1a : Nuage de grains (0-1s)
+            if t < 1.0:
+                progression = t / 1.0
+                n_visible = int(progression * num)
+                
+                # Apparition dans une sphère de poussière cosmique
+                for i in range(num):
+                    if i < n_visible:
+                        # Sphère de rayon 80m
+                        theta = rng.uniform(0, 2 * np.pi)
+                        phi = rng.uniform(0, np.pi)
+                        r = rng.uniform(20, 80)
+                        
+                        pos[i, 0] = r * np.sin(phi) * np.cos(theta)
+                        pos[i, 1] = 40 + r * np.cos(phi) * 0.5  # Centre à 40m
+                        pos[i, 2] = r * np.sin(phi) * np.sin(theta)
+                        
+                        # Scintillement de poussière
+                        cols[i] = SABLE_SEC * (0.5 + rng.uniform(0, 0.5))
+                    else:
+                        pos[i] = [0, -100, 0]  # Caché
+                        cols[i] = [0, 0, 0]
+            
+            # Phase 1b : Sédimentation (1-2s)
+            elif t < 2.0:
+                progression = (t - 1.0) / 1.0
+                
+                for i in range(num):
+                    # Position initiale (reprendre du nuage)
+                    theta = rng.uniform(0, 2 * np.pi)
+                    phi = rng.uniform(0, np.pi)
+                    r = rng.uniform(20, 80)
+                    
+                    x_init = r * np.sin(phi) * np.cos(theta)
+                    y_init = 40 + r * np.cos(phi) * 0.5
+                    z_init = r * np.sin(phi) * np.sin(theta)
+                    
+                    # Vitesse de chute variable (grains lourds vs légers)
+                    vitesse_chute = 0.5 + rng.uniform(0, 1.5) * (i % 10) / 10
+                    
+                    # Position interpolée vers le sol
+                    y_cible = 15 + rng.uniform(-3, 3)
+                    
+                    pos[i, 0] = x_init + vent_direction_x * progression * 10
+                    pos[i, 1] = y_init - (y_init - y_cible) * progression * vitesse_chute
+                    pos[i, 2] = z_init + vent_direction_z * progression * 8
+                    
+                    # Couleur selon la hauteur
+                    h_norm = (pos[i, 1] - 10) / 40
+                    cols[i] = SABLE_HUMIDE * (1 - h_norm) + SABLE_SEC * h_norm
+            
+            # Phase 1c : Premières rides (2-3s)
+            elif t < 3.0:
+                progression = (t - 2.0) / 1.0
+                
+                # Grille de base qui se forme
+                grid_side = int(np.ceil(np.sqrt(num))) + 1
+                x_lin = np.linspace(-100, 100, grid_side)
+                z_lin = np.linspace(-100, 100, grid_side)
+                xv, zv = np.meshgrid(x_lin, z_lin)
+                flat_x = xv.flatten()[:num]
+                flat_z = zv.flatten()[:num]
+                
+                for i in range(num):
+                    # Transition douce vers la grille
+                    x_random = rng.uniform(-100, 100)
+                    z_random = rng.uniform(-100, 100)
+                    
+                    pos[i, 0] = x_random * (1 - progression) + flat_x[i % len(flat_x)] * progression
+                    pos[i, 2] = z_random * (1 - progression) + flat_z[i % len(flat_z)] * progression
+                    
+                    # Premières rides de sable (micro-ondulations)
+                    ride_amp = progression * 3.0
+                    pos[i, 1] = 15 + np.sin(pos[i, 0] * 0.1) * ride_amp + np.sin(pos[i, 2] * 0.08) * ride_amp * 0.7
+                    
+                    cols[i] = SABLE_MOYEN
+            
+            # Phase 1d : Micro-dunes (3-4s)
+            else:
+                progression = (t - 3.0) / 1.0
+                
+                grid_side = int(np.ceil(np.sqrt(num))) + 1
+                x_lin = np.linspace(-100, 100, grid_side)
+                z_lin = np.linspace(-100, 100, grid_side)
+                xv, zv = np.meshgrid(x_lin, z_lin)
+                
+                flat_x = xv.flatten()
+                flat_z = zv.flatten()
+                pos[:, 0] = flat_x[:num]
+                pos[:, 2] = flat_z[:num]
+                
+                # Micro-dunes qui grossissent
+                dune_amp = 5.0 + progression * 10.0
+                pos[:, 1] = 15 + dune_amp * np.sin(pos[:, 0] * 0.05 + t * 0.3) * np.cos(pos[:, 2] * 0.04)
+                pos[:, 1] += 3.0 * np.sin(pos[:, 0] * 0.12 + pos[:, 2] * 0.1)
+                
+                # Gradient de couleur
+                h_norm = np.clip((pos[:, 1] - 10) / 25, 0, 1)
+                for i in range(num):
+                    cols[i] = SABLE_HUMIDE * (1 - h_norm[i]) + SABLE_SEC * h_norm[i]
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # PARTIE 2 : CROISSANCE DES DUNES (4-9s)
+        # ═══════════════════════════════════════════════════════════════════
+        elif t < 9.0:
+            
+            # Distribution des drones
+            n_barkhanes = 180       # Croissants migrants
+            n_transversales = 280   # Vagues respirantes
+            n_etoilee = 140         # Centre rotatif
+            n_reg = 180             # Plateau + inselbergs
+            n_erg = 140             # Mer ondulante
+            n_caravane = 20         # Caravane nomade (apparaît à t=8s)
+            n_extra = num - n_barkhanes - n_transversales - n_etoilee - n_reg - n_erg - n_caravane
+            
+            idx = 0
+            progression_globale = (t - 4.0) / 5.0  # 0 à 1 sur 4-9s
+            
+            # ─────────────────────────────────────────────────────────────────
+            # 1. DUNES BARKHANES "MIGRANTES" (croissants qui avancent)
+            # ─────────────────────────────────────────────────────────────────
+            barkhane_centers = [(-60, -40), (50, 30), (-20, 60)]
+            drones_per_barkhane = n_barkhanes // 3
+            
+            emergence_barkhane = min(1.0, (t - 4.0) / 1.0)  # Émergence en 1s
+            
+            for bi, (cx, cz) in enumerate(barkhane_centers):
+                for i in range(drones_per_barkhane):
+                    if idx >= num:
+                        break
+                    
+                    angle = (i / drones_per_barkhane) * 2 * np.pi
+                    rayon = 30 * (1 - 0.35 * np.cos(angle))
+                    
+                    # MIGRATION : avance vers l'Est
+                    migration = (t - 4.0) * 0.8
+                    
+                    pos[idx, 0] = cx + np.cos(angle) * rayon + migration
+                    pos[idx, 2] = cz + np.sin(angle) * rayon
+                    
+                    # Profil de croissant
+                    hauteur_base = 20 + bi * 5
+                    profil = 0.3 + 0.7 * np.sin(angle * 0.5 + np.pi/4) ** 2
+                    pos[idx, 1] = (hauteur_base + profil * 22) * emergence_barkhane
+                    
+                    # Sable qui vole sur les crêtes
+                    if pos[idx, 1] > 28:
+                        pos[idx, 1] += np.sin(t * 5 + pos[idx, 0] * 0.1) * 1.5
+                    
+                    # Couleur chaude
+                    h = (pos[idx, 1] - 15) / 30
+                    cols[idx] = SABLE_MOYEN * (1 - h) + CRETE_SOLEIL * h
+                    
+                    idx += 1
+            
+            # ─────────────────────────────────────────────────────────────────
+            # 2. DUNES TRANSVERSALES "RESPIRANTES" (gonflent/dégonflent)
+            # ─────────────────────────────────────────────────────────────────
+            n_waves = 5
+            points_per_wave = n_transversales // n_waves
+            
+            emergence_trans = min(1.0, (t - 5.0) / 1.0) if t > 5.0 else 0.0
+            
+            for wave_idx in range(n_waves):
+                z_base = -50 + wave_idx * 25
+                
+                for i in range(points_per_wave):
+                    if idx >= num:
+                        break
+                    
+                    x = (i / points_per_wave - 0.5) * 140
+                    
+                    # RESPIRATION : amplitude qui varie comme des poumons
+                    amplitude_respiration = 22 + np.sin(t * 0.8 + wave_idx) * 6
+                    
+                    y = amplitude_respiration * np.sin(x * 0.08 + wave_idx * 0.5 + t * 0.3)
+                    y = (y + 25) * emergence_trans
+                    
+                    pos[idx, 0] = x
+                    pos[idx, 1] = max(12, y)
+                    pos[idx, 2] = z_base + rng.uniform(-4, 4)
+                    
+                    # Couleur selon phase de respiration
+                    respiration_phase = np.sin(t * 0.8 + wave_idx)
+                    if respiration_phase > 0.5:
+                        cols[idx] = CRETE_SOLEIL
+                    else:
+                        cols[idx] = SABLE_SEC
+                    
+                    idx += 1
+            
+            # ─────────────────────────────────────────────────────────────────
+            # 3. DUNE ÉTOILÉE "ROTATIVE" (tourne sur elle-même)
+            # ─────────────────────────────────────────────────────────────────
+            centre_x, centre_z = 0, 0
+            n_bras = 6
+            points_per_bras = n_etoilee // n_bras
+            
+            emergence_etoile = min(1.0, (t - 6.0) / 1.0) if t > 6.0 else 0.0
+            angle_rotation = t * 0.25  # Rotation lente
+            
+            for bras in range(n_bras):
+                angle_bras = (bras / n_bras) * 2 * np.pi + angle_rotation
+                
+                for i in range(points_per_bras):
+                    if idx >= num:
+                        break
+                    
+                    distance = i * 2.2
+                    
+                    # Ondulation du bras
+                    angle_var = angle_bras + np.sin(distance * 0.12) * 0.15
+                    
+                    pos[idx, 0] = centre_x + np.cos(angle_var) * distance
+                    pos[idx, 2] = centre_z + np.sin(angle_var) * distance
+                    
+                    # Hauteur décroissante (sommet au centre)
+                    hauteur = 45 * np.exp(-distance / 22) + 15
+                    pos[idx, 1] = hauteur * emergence_etoile
+                    
+                    # Couleur dorée au centre
+                    if distance < 15:
+                        cols[idx] = ORANGE_NIGER
+                    else:
+                        cols[idx] = SABLE_SEC
+                    
+                    idx += 1
+            
+            # ─────────────────────────────────────────────────────────────────
+            # 4. REG "TECTONIQUE" (plaques qui dérivent + inselbergs)
+            # ─────────────────────────────────────────────────────────────────
+            n_surface = int(n_reg * 0.7)
+            n_inselbergs = n_reg - n_surface
+            
+            # Surface plate avec dérive tectonique
+            for i in range(n_surface):
+                if idx >= num:
+                    break
+                
+                base_x = rng.uniform(-90, 90)
+                base_z = rng.uniform(50, 100)
+                
+                # Dérive des plaques
+                derive_x = np.sin(t * 0.2) * 8
+                derive_z = np.cos(t * 0.15) * 6
+                
+                pos[idx, 0] = base_x + derive_x
+                pos[idx, 1] = 10 + rng.uniform(-2, 2)
+                pos[idx, 2] = base_z + derive_z
+                
+                cols[idx] = SABLE_HUMIDE
+                idx += 1
+            
+            # Inselbergs qui "poussent"
+            inselberg_locs = [(60, 70), (-50, 80), (20, 90), (-30, 65)]
+            drones_per_insel = n_inselbergs // 4
+            
+            for (ix, iz) in inselberg_locs:
+                for i in range(drones_per_insel):
+                    if idx >= num:
+                        break
+                    
+                    angle = rng.uniform(0, 2 * np.pi)
+                    dist = rng.uniform(0, 10)
+                    
+                    pos[idx, 0] = ix + np.cos(angle) * dist
+                    pos[idx, 2] = iz + np.sin(angle) * dist
+                    
+                    # Inselbergs qui "poussent" avec le temps
+                    hauteur_insel = 22 * (1 - dist / 10) + np.sin(t * 0.5) * 3
+                    pos[idx, 1] = 10 + hauteur_insel
+                    
+                    cols[idx] = SABLE_MOYEN * 0.8  # Plus sombre
+                    idx += 1
+            
+            # ─────────────────────────────────────────────────────────────────
+            # 5. ERG "DANSANT" (mer de sable ondulante)
+            # ─────────────────────────────────────────────────────────────────
+            emergence_erg = min(1.0, (t - 7.0) / 1.0) if t > 7.0 else 0.0
+            erg_rows = 12
+            erg_cols = n_erg // erg_rows
+            
+            for zi in range(erg_rows):
+                z = -90 + zi * 8
+                
+                for xi in range(erg_cols):
+                    if idx >= num:
+                        break
+                    
+                    x = -90 + xi * (80.0 / erg_cols)
+                    
+                    # Triple sinusoïde pour effet mer agitée
+                    y = (np.sin(x * 0.05 + z * 0.03 + t * 0.4) * 12 +
+                         np.sin(x * 0.12 + z * 0.08 + t * 1.2) * 6 +
+                         np.sin(x * 0.25 + t * 3.0) * 2 +
+                         18)
+                    
+                    pos[idx, 0] = x
+                    pos[idx, 1] = y * emergence_erg
+                    pos[idx, 2] = z + rng.uniform(-2, 2)
+                    
+                    cols[idx] = SABLE_SEC
+                    idx += 1
+            
+            # ─────────────────────────────────────────────────────────────────
+            # 6. CARAVANE NOMADE (apparaît à t=8s)
+            # ─────────────────────────────────────────────────────────────────
+            if t >= 8.0:
+                caravane_visible = min(1.0, (t - 8.0) / 0.5)
+                
+                # Position de tête
+                tete_x = -70 + (t - 8.0) * 3  # Avance à 3 m/s
+                tete_z = 25
+                
+                for i in range(n_caravane):
+                    if idx >= num:
+                        break
+                    
+                    # Ligne de "chameaux"
+                    decalage = i * -3.5
+                    
+                    x = tete_x + decalage
+                    z = tete_z + np.sin(i * 0.5) * 2.5
+                    
+                    # Hauteur du terrain + 2m
+                    terrain_h = 15 + 8 * np.sin(x * 0.04) * np.cos(z * 0.03)
+                    y = terrain_h + 2.5
+                    
+                    # Animation de marche
+                    y += np.sin(t * 4 + i * 0.3) * 0.7
+                    
+                    pos[idx, 0] = x
+                    pos[idx, 1] = y * caravane_visible
+                    pos[idx, 2] = z
+                    
+                    # Couleur sombre (silhouettes)
+                    cols[idx] = np.array([0.3, 0.2, 0.1])
+                    idx += 1
+            else:
+                # Caravane pas encore visible - remplir avec extras
+                for i in range(n_caravane):
+                    if idx >= num:
+                        break
+                    pos[idx] = [rng.uniform(-80, 80), 12, rng.uniform(-80, 80)]
+                    cols[idx] = SABLE_MOYEN
+                    idx += 1
+            
+            # Remplir les extras
+            while idx < num:
+                pos[idx] = [rng.uniform(-90, 90), 12 + rng.uniform(-2, 4), rng.uniform(-90, 90)]
+                cols[idx] = SABLE_MOYEN
+                idx += 1
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # PARTIE 3 : VIE DU DÉSERT (9-13s)
+        # ═══════════════════════════════════════════════════════════════════
+        elif t < 13.0:
+            
+            # Reprendre la structure des dunes de la partie 2
+            # mais avec animations vent + vague + coucher de soleil
+            
+            grid_side = int(np.ceil(np.sqrt(num))) + 1
+            x_lin = np.linspace(-100, 100, grid_side)
+            z_lin = np.linspace(-100, 100, grid_side)
+            xv, zv = np.meshgrid(x_lin, z_lin)
+            
+            flat_x = xv.flatten()
+            flat_z = zv.flatten()
+            pos[:, 0] = flat_x[:num]
+            pos[:, 2] = flat_z[:num]
+            
+            # Terrain de base (multi-dunes)
+            pos[:, 1] = 18 + 18 * np.sin(pos[:, 0] * 0.04 + t * 0.3) * np.cos(pos[:, 2] * 0.035)
+            pos[:, 1] += 8 * np.sin(pos[:, 0] * 0.08 + pos[:, 2] * 0.06 + t * 0.5)
+            pos[:, 1] += 3 * np.sin(pos[:, 0] * 0.15 + t * 2.0)
+            
+            # ─────────────────────────────────────────────────────────────────
+            # EFFET VENT avec rafales
+            # ─────────────────────────────────────────────────────────────────
+            facteur_hauteur = np.clip((pos[:, 1] - 15) / 30, 0, 1)
+            
+            # Vent de base (plus fort en haut)
+            pos[:, 0] += vent_direction_x * vent_vitesse * facteur_hauteur * 0.8
+            pos[:, 2] += vent_direction_z * vent_vitesse * facteur_hauteur * 0.6
+            
+            # Turbulence
+            pos[:, 0] += np.sin(t * 3 + pos[:, 1] * 0.1) * turbulence * facteur_hauteur * 0.5
+            pos[:, 2] += np.cos(t * 2.7 + pos[:, 0] * 0.08) * turbulence * facteur_hauteur * 0.4
+            
+            # Rafales locales (4 points)
+            rafale_centres = [(-40, -30), (50, 20), (-20, 50), (30, -40)]
+            for (rx, rz) in rafale_centres:
+                distance = np.sqrt((pos[:, 0] - rx)**2 + (pos[:, 2] - rz)**2)
+                mask_rafale = distance < 25
+                
+                rafale_force = 1.5 + np.sin(t * 2) * 0.8
+                rafale_effet = (1 - distance[mask_rafale] / 25) * rafale_force
+                
+                pos[mask_rafale, 0] += vent_direction_x * rafale_effet * 0.4
+                pos[mask_rafale, 2] += vent_direction_z * rafale_effet * 0.3
+                pos[mask_rafale, 1] += np.sin(t * 8) * rafale_effet * 0.5
+            
+            # ─────────────────────────────────────────────────────────────────
+            # VAGUE DE SABLE GÉANTE (t=10-11s)
+            # ─────────────────────────────────────────────────────────────────
+            if 10.0 <= t <= 11.5:
+                progression_vague = (t - 10.0) / 1.5
+                
+                # Position de la crête
+                crete_x = -100 + progression_vague * 200
+                
+                distance_crete = np.abs(pos[:, 0] - crete_x)
+                mask_vague = distance_crete < 35
+                
+                # Forme de vague
+                amplitude_vague = 15 * (1 - distance_crete[mask_vague] / 35)
+                decalage_vague = amplitude_vague * np.sin((pos[mask_vague, 0] - crete_x) * 0.15)
+                
+                pos[mask_vague, 1] += decalage_vague
+                
+                # Crête qui explose
+                mask_crete = distance_crete < 8
+                pos[mask_crete, 1] += np.sin(t * 12) * 4
+                pos[mask_crete, 0] += np.sin(t * 15) * 0.8
+            
+            # ─────────────────────────────────────────────────────────────────
+            # COULEURS COUCHER DE SOLEIL
+            # ─────────────────────────────────────────────────────────────────
+            progression_coucher = (t - 9.0) / 4.0  # 0 à 1 sur 9-13s
+            
+            # Normaliser la hauteur
+            h_norm = np.clip((pos[:, 1] - 10) / 35, 0, 1)
+            
+            for i in range(num):
+                h = h_norm[i]
+                
+                # Gradient de base
+                if h < 0.3:
+                    base = SABLE_HUMIDE
+                elif h < 0.6:
+                    blend = (h - 0.3) / 0.3
+                    base = SABLE_HUMIDE * (1 - blend) + SABLE_SEC * blend
+                else:
+                    blend = (h - 0.6) / 0.4
+                    base = SABLE_SEC * (1 - blend) + CRETE_SOLEIL * blend
+                
+                # Transition vers orange/rouge (coucher de soleil)
+                if h > 0.4:
+                    orange_blend = progression_coucher * (h - 0.4) * 1.5
+                    base = base * (1 - orange_blend) + OR_COUCHANT * orange_blend
+                
+                # Ombres violettes en bas
+                if h < 0.25:
+                    ombre_blend = progression_coucher * 0.4
+                    base = base * (1 - ombre_blend) + VIOLET_OMBRE * ombre_blend
+                
+                cols[i] = base
+            
+            # Miroitement du sable
+            miroitement = np.sin(pos[:, 0] * 0.2 + pos[:, 2] * 0.15 + t * 8) * 0.12
+            cols[:, 0] = np.clip(cols[:, 0] + miroitement * h_norm, 0, 1.2)
+            cols[:, 1] = np.clip(cols[:, 1] + miroitement * h_norm * 0.7, 0, 1.2)
+            
+            # Caravane (20 derniers drones)
+            if t >= 9.0:
+                tete_x = -70 + (t - 8.0) * 3
+                tete_z = 25
+                
+                for i in range(20):
+                    ci = num - 20 + i
+                    decalage = i * -3.5
+                    
+                    pos[ci, 0] = tete_x + decalage
+                    pos[ci, 2] = tete_z + np.sin(i * 0.5) * 2.5
+                    pos[ci, 1] = 18 + 8 * np.sin(pos[ci, 0] * 0.04) + 2.5 + np.sin(t * 4 + i * 0.3) * 0.7
+                    cols[ci] = np.array([0.25, 0.15, 0.08])
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # PARTIE 4 : TRANSITION MAGIQUE (13-15s)
+        # ═══════════════════════════════════════════════════════════════════
+        else:
+            progression_trans = (t - 13.0) / 2.0  # 0 à 1 sur 13-15s
+            
+            grid_side = int(np.ceil(np.sqrt(num))) + 1
+            x_lin = np.linspace(-100, 100, grid_side)
+            z_lin = np.linspace(-100, 100, grid_side)
+            xv, zv = np.meshgrid(x_lin, z_lin)
+            
+            flat_x = xv.flatten()
+            flat_z = zv.flatten()
+            pos[:, 0] = flat_x[:num]
+            pos[:, 2] = flat_z[:num]
+            
+            # Terrain qui s'aplatit progressivement
+            dune_height = 15 * (1 - progression_trans * 0.7)
+            pos[:, 1] = 20 + dune_height * np.sin(pos[:, 0] * 0.04) * np.cos(pos[:, 2] * 0.035)
+            
+            # Forme de fleuve qui apparaît
+            fleuve_mask = np.abs(pos[:, 2] - 20 * np.sin(pos[:, 0] * 0.02)) < (15 + progression_trans * 20)
+            
+            # Drones du fleuve descendent légèrement
+            pos[fleuve_mask, 1] = pos[fleuve_mask, 1] * (1 - progression_trans * 0.3)
+            
+            # Couleurs
+            h_norm = np.clip((pos[:, 1] - 10) / 25, 0, 1)
+            
+            for i in range(num):
+                if fleuve_mask[i]:
+                    # Transition vers bleu
+                    bleu_fleuve = np.array([0.2, 0.4, 0.7])
+                    cols[i] = SABLE_SEC * (1 - progression_trans) + bleu_fleuve * progression_trans
+                else:
+                    # Dunes qui s'assombrissent (nuit qui tombe)
+                    cols[i] = SABLE_MOYEN * (1 - progression_trans * 0.4)
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # CONTRAINTES FINALES
+        # ═══════════════════════════════════════════════════════════════════
+        
+        # Sol minimum à 8m
+        pos[:, 1] = np.maximum(pos[:, 1], 8.0)
+        
+        # Limites spatiales
+        pos[:, 0] = np.clip(pos[:, 0], -120, 120)
+        pos[:, 2] = np.clip(pos[:, 2], -120, 120)
+        
+        # Couleurs dans les limites
+        cols = np.clip(cols, 0.0, 1.5)
+        
+        return pos, cols
+
+    def _act_3_fleuve_niger(self, num):
+        # LE FLEUVE NIGER (The Niger River)
         pos = np.zeros((num, 3))
         cols = np.tile(self.colors["star_blue"], (num, 1))
         length = 240.0
@@ -708,12 +1693,11 @@ class FormationLibrary:
             z = 45.0 * np.sin(x * 0.03) + 15.0 * np.cos(x * 0.07)
             perp_off = np.random.uniform(-width_base/2, width_base/2)
             y = 65.0 + 12.0 * np.sin(x * 0.015)
-            # Give the river a sculptural depth (4m) and slight organic jitter
             z_final = z + perp_off + np.random.uniform(-2.0, 2.0)
             pos[i] = [x, y, z_final]
             if np.random.rand() > 0.8: cols[i] = self.colors["blanc_pure"]
         return pos, cols
-        
+
     def _phase_1_pluie(self, num, t=0.0, audio_energy=0.5):
         # Cœur lumineux rouge (contour + remplissage optionnel)
         # Paramétrique: x=16 sin^3 t, y=13 cos t - 5 cos 2t - 2 cos 3t - cos 4t

@@ -1,0 +1,269 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# 🎭 ACTE 0 : SILENCE SACRÉ - Configuration Détaillée
+# ═══════════════════════════════════════════════════════════════════════════
+# 
+# Le rideau cosmique qui s'ouvre pour révéler le spectacle.
+# Premier moment du show - silence avant la création.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+
+act0_silence_sacre:
+  # ─────────────────────────────────────────────────────────────────────────
+  # DIMENSIONS PHYSIQUES DU RIDEAU
+  # ─────────────────────────────────────────────────────────────────────────
+  dimensions:
+    width: 120.0          # Largeur du rideau (mètres)
+    height: 220.0         # Hauteur du rideau (mètres)
+    depth_offset: 150.0   # Distance devant la caméra (mètres)
+    base_height: 15.0     # Hauteur du bas du rideau (mètres)
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # TIMELINE DES ÉTATS (en secondes)
+  # ─────────────────────────────────────────────────────────────────────────
+  timing:
+    total_duration: 10.0        # Durée totale de l'acte
+    
+    states:
+      INITIAL_HOLD:
+        start: 0.0
+        end: 0.5
+        description: "Rideau statique, attente sacrée"
+        
+      DRAPE_WAVE:
+        start: 0.5
+        end: 1.1
+        description: "Ondulation douce du tissu cosmique"
+        
+      SUSPENSE:
+        start: 1.1
+        end: 1.5
+        description: "Pause dramatique avant l'ouverture"
+        
+      OPENING:
+        start: 1.5
+        end: 3.5
+        description: "Séparation majestueuse du rideau"
+        
+      FLOATING_DUST:
+        start: 3.5
+        end: 8.0
+        description: "Poussières cosmiques flottantes"
+        
+      FADE_OUT:
+        start: 8.0
+        end: 10.0
+        description: "Extinction progressive vers le noir"
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # GRILLE DE DRONES
+  # ─────────────────────────────────────────────────────────────────────────
+  grid:
+    columns: 25           # Colonnes de la grille (X)
+    rows: 40              # Lignes de la grille (Y)
+    total_drones: 1000    # Total = 25 × 40
+    
+    jitter:
+      x: 1.2              # Variation aléatoire en X (mètres)
+      y: 1.8              # Variation aléatoire en Y (mètres)
+      z: 2.0              # Variation aléatoire en Z (mètres)
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # EFFET DRAPÉ (ONDULATIONS)
+  # ─────────────────────────────────────────────────────────────────────────
+  drape_effect:
+    amplitude: 8.0        # Amplitude des plis (mètres)
+    
+    frequencies:
+      primary: 0.055      # Grands plis verticaux (lents)
+      secondary: 0.04     # Plis horizontaux (contre-phase)
+      tertiary: 0.02      # Micro-ondulations diagonales
+    
+    animation_speed: 0.35 # Vitesse de phase d'animation
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # OUVERTURE DU RIDEAU
+  # ─────────────────────────────────────────────────────────────────────────
+  opening:
+    max_offset: 70.0      # Séparation max gauche/droite (mètres)
+    easing: "cubic"       # Type d'interpolation (cubic ease-in-out)
+    
+    s_curve:
+      enabled: true
+      amplitude: 3.0      # Amplitude de la courbure en S
+      frequency: 0.045    # Fréquence de la courbure
+    
+    rotation:
+      enabled: true
+      factor: 0.15        # Facteur de rotation des panneaux
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # POINTS SPÉCIAUX
+  # ─────────────────────────────────────────────────────────────────────────
+  special_points:
+    # Étoiles brillantes (2% des drones)
+    stars:
+      count: 20           # Nombre de points brillants
+      ratio: 0.02         # 2% du total
+      pulse_frequency: 3.0
+      pulse_amplitude: 0.4
+      base_brightness: 1.2
+    
+    # Poussières cosmiques (0.5% des drones)
+    dust:
+      count: 5            # Nombre de poussières
+      ratio: 0.005        # 0.5% du total
+      movement:
+        x_amplitude: 8.0
+        y_amplitude: 5.0
+        z_amplitude: 6.0
+        x_frequency: 1.2
+        y_frequency: 0.8
+        z_frequency: 1.5
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # PALETTE DE COULEURS
+  # ─────────────────────────────────────────────────────────────────────────
+  colors:
+    base:
+      name: "star_blue"
+      rgb: [0.7, 0.85, 1.0]
+    
+    highlight:
+      name: "blanc_pure"
+      rgb: [1.0, 1.0, 1.0]
+    
+    fog:
+      name: "bleu_nuit_profond"
+      rgb: [0.0, 0.02, 0.05]
+    
+    gradients:
+      vertical:
+        bottom_intensity: 0.22    # Intensité en bas (22%)
+        top_intensity: 0.40       # Intensité en haut (40%)
+        white_mix_max: 0.30       # Max 30% de blanc en haut
+    
+    filament:
+      width: 12.0                 # Largeur du filament central (mètres)
+      intensity: 1.6              # Intensité (160%)
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # EFFETS ATMOSPHÉRIQUES
+  # ─────────────────────────────────────────────────────────────────────────
+  atmosphere:
+    fog:
+      enabled: true
+      density: 0.08
+      
+    micro_movements:
+      enabled: true
+      scale: 0.4
+      frequencies:
+        x: 1.3
+        y: 1.7
+        z: 2.1
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # SÉQUENCE CAMÉRA
+  # ─────────────────────────────────────────────────────────────────────────
+  camera_sequence:
+    INITIAL_HOLD:
+      distance: 380.0
+      pitch: -5.0
+      yaw: 0.0
+      target_y: 110.0
+      lerp_speed: 0.3
+      description: "Vue monumentale arrière"
+    
+    DRAPE_WAVE:
+      distance_start: 350.0
+      distance_end: 280.0
+      pitch_start: -5.0
+      pitch_end: -10.0
+      yaw_rotation: 15.0
+      lerp_speed: 0.5
+      description: "Mouvement orbital lent"
+    
+    SUSPENSE:
+      distance_start: 280.0
+      distance_end: 220.0
+      pitch_start: -10.0
+      pitch_end: -8.0
+      yaw_recentering: true
+      lerp_speed: 0.8
+      description: "Zoom avant dramatique"
+    
+    OPENING:
+      distance_start: 220.0
+      distance_end: 280.0
+      pitch_start: -8.0
+      pitch_end: -12.0
+      lateral_follow: true
+      lerp_speed: 0.6
+      description: "Suivre l'ouverture latérale"
+    
+    FLOATING_DUST:
+      distance_start: 280.0
+      distance_end: 180.0
+      orbit_angle: 30.0
+      pitch_start: -12.0
+      pitch_end: -8.0
+      lerp_speed: 0.4
+      description: "Focus intime sur les poussières"
+    
+    FADE_OUT:
+      distance_start: 180.0
+      distance_end: 250.0
+      pitch_start: -8.0
+      pitch_end: -10.0
+      lerp_speed: 0.3
+      description: "Retour vue spectateur"
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # AUDIO-RÉACTIVITÉ
+  # ─────────────────────────────────────────────────────────────────────────
+  audio_reactivity:
+    enabled: true
+    
+    bass:
+      threshold: 0.6
+      effect: "star_pulse"
+      boost_factor: 0.5
+    
+    mid:
+      threshold: 0.7
+      effect: "color_wave"
+      wave_intensity: 0.1
+    
+    beat_detection:
+      min_interval: 0.3   # Minimum 300ms entre beats
+      pulse_duration: 0.1 # Durée du pulse
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NOTES DE MISE EN SCÈNE
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# INTENTION ARTISTIQUE:
+# ---------------------
+# Le spectacle commence par le mystère — un voile cosmique qui cache
+# l'infini, puis s'écarte lentement pour inviter le public dans un voyage
+# à travers l'identité nigérienne. Ce n'est pas juste une ouverture 
+# technique, c'est un rituel de passage.
+#
+# C'est le moment où le public retient son souffle, où le silence de la
+# nuit est sacré avant l'explosion de lumière et de mouvement qui suivra.
+#
+# MUSIQUE RECOMMANDÉE:
+# --------------------
+# - Ambiance: Nappes synthétiques graves, respirantes
+# - 0-1.5s: Silence presque total, juste un souffle
+# - 1.5-3.5s: Crescendo subtil pendant l'ouverture
+# - 3.5-8s: Notes cristallines pour les poussières
+# - 8-10s: Decrescendo vers le silence
+#
+# TRANSITION VERS ACTE 1:
+# -----------------------
+# Le fade out de l'Acte 0 doit se fondre naturellement avec l'apparition
+# des dunes de l'Acte 1 (Desert Birth). Les poussières résiduelles peuvent
+# symboliquement devenir les premières particules de sable du désert.
+#
+# ═══════════════════════════════════════════════════════════════════════════

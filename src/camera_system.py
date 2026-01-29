@@ -8,7 +8,7 @@ class CameraSystem:
         self.presets = {
             # Ground Intent: Human/Crane perspective (8-15m)
             "ground": {"dist": 200.0, "yaw": 12.0, "pitch": -10.0, "target_y": 55.0, "intent": "human"},
-            "desert": {"dist": 300.0, "yaw": 15.0, "pitch": 10.0, "target_y": 2.0, "intent": "plongee"},
+            "desert": {"dist": 180.0, "yaw": -30.0, "pitch": -25.0, "target_y": 30.0, "intent": "plongee"},
             
             # Interaction Intent: Relationship/Flow perspective (30-50m)
             "interaction": {"dist": 220.0, "yaw": 18.0, "pitch": -12.0, "target_y": 65.0, "intent": "observer"},
@@ -23,7 +23,7 @@ class CameraSystem:
             # Global Intent: Vision System (70-120m)
             "flag": {"dist": 350.0, "yaw": 20.0, "pitch": -8.0, "target_y": 90.0, "intent": "vision"},
             "wide": {"dist": 360.0, "yaw": 20.0, "pitch": -7.0, "target_y": 95.0, "intent": "vision"},
-            "wide_opening": {"dist": 480.0, "yaw": 0.0, "pitch": -10.0, "target_y": 80.0, "intent": "vision"},
+            "wide_opening": {"dist": 150.0, "yaw": 0.0, "pitch": -25.0, "target_y": 30.0, "intent": "vision"},
             
             # Africa Map - direct overhead view (drone view)
             "africa_map": {"dist": 150.0, "yaw": 0.0, "pitch": -89.0, "target_y": 50.0, "intent": "vision"},
@@ -171,8 +171,255 @@ class CameraSystem:
         self.drift_time += dt
         self.phase_time += dt
         
+        # ═══════════════════════════════════════════════════════════════
+        # ACTE 0: NAISSANCE COSMIQUE - Séquence Cinématique "CIEL RÉALISTE"
+        # ═══════════════════════════════════════════════════════════════
+        # Nouvelles altitudes réalistes:
+        # - Étoiles: 20-40m (visible depuis le sol)
+        # - ANEM: 35m (grand texte dans le ciel)
+        # - Sphère: 60m (point culminant)
+        # - Arc-en-ciel: 20-50m (arc bas et majestueux)
+        # - Horizon spectateur: 0m (niveau du sol)
+        # ═══════════════════════════════════════════════════════════════
+        if self.current_phase == "act0_pre_opening":
+            
+            if self.phase_time < 3.0:
+                # PHASE 1: NUIT PRIMORDIALE (0-3s)
+                # Vue depuis le sol, regardant vers le ciel où les étoiles apparaissent (20-40m)
+                progress = self.phase_time / 3.0
+                
+                # Caméra près du sol, regard vers le haut
+                self.target_dist = 80.0 + progress * 40.0    # 80 → 120m (proche pour intimité)
+                self.target_pitch = -20.0 - progress * 10.0  # -20 → -30 (fort regard vers le haut)
+                self.target_yaw = progress * 10.0             # Légère rotation panoramique
+                self.target_target_y = 30.0                   # Centre des étoiles (~30m)
+                self.lerp_speed = 0.5
+                
+            elif self.phase_time < 8.0:
+                # PHASE 2: CONSTELLATION ANEM (3-8s)
+                # Le texte ANEM se forme à 35m d'altitude, large de 120m
+                progress = (self.phase_time - 3.0) / 5.0
+                
+                # Recul progressif pour voir le texte complet
+                self.target_dist = 120.0 + progress * 100.0   # 120 → 220m (voir ANEM en entier)
+                self.target_pitch = -15.0 - progress * 5.0    # -15 → -20 (vue vers le haut)
+                self.target_yaw = 10.0 + progress * 8.0       # Lent panoramique (10 → 18)
+                self.target_target_y = 35.0                   # Centre du texte ANEM
+                self.lerp_speed = 0.6
+                
+            elif self.phase_time < 12.0:
+                # PHASE 3: CŒUR COSMIQUE (8-12s)
+                # La sphère dorée pulse à 60m d'altitude
+                progress = (self.phase_time - 8.0) / 4.0
+                
+                # Rapprochement vers la sphère avec orbite
+                self.target_dist = 100.0 - progress * 30.0    # 100 → 70m (proche de la sphère)
+                
+                # Orbite autour de la sphère
+                orbit_angle = progress * 50.0
+                self.target_yaw = 18.0 + orbit_angle
+                
+                # Montée pour voir la sphère en contre-plongée
+                self.target_pitch = -20.0 + progress * 25.0   # -20 → +5 (passe au-dessus)
+                self.target_target_y = 60.0                   # Centre de la sphère
+                
+                # Accélération sur la dernière pulsation
+                if self.phase_time > 11.0:
+                    self.lerp_speed = 1.5
+                else:
+                    self.lerp_speed = 0.8
+                
+            else:
+                # PHASE 4: ÉCLOSION FINALE (12-20s)
+                # Arc-en-ciel entre 20m et 50m d'altitude
+                
+                if self.phase_time < 12.5:
+                    # Explosion initiale (12-12.5s)
+                    explosion_progress = (self.phase_time - 12.0) / 0.5
+                    self.target_dist = 70.0 + explosion_progress * 130.0   # 70 → 200m (recul rapide)
+                    self.target_pitch = 5.0 - explosion_progress * 20.0    # +5 → -15 (bascule vers le haut)
+                    self.target_yaw = 68.0 - explosion_progress * 58.0     # Recentrage vers 10
+                    self.target_target_y = 40.0                            # Centre de l'explosion
+                    self.lerp_speed = 2.5
+                    
+                elif self.phase_time < 14.0:
+                    # Formation arc-en-ciel (12.5-14s)
+                    form_progress = (self.phase_time - 12.5) / 1.5
+                    self.target_dist = 200.0 + form_progress * 30.0        # 200 → 230m
+                    self.target_pitch = -15.0 - form_progress * 5.0        # -15 → -20 (contre-plongée)
+                    self.target_yaw = 10.0 - form_progress * 3.0           # Stable autour de 7
+                    self.target_target_y = 35.0                            # Centre de l'arc
+                    self.lerp_speed = 1.2
+                    
+                elif self.phase_time < 18.0:
+                    # Arc-en-ciel stable (14-18s)
+                    hold_progress = (self.phase_time - 14.0) / 4.0
+                    self.target_dist = 230.0                               # Distance stable
+                    self.target_pitch = -20.0                              # Contre-plongée pour voir l'arc
+                    self.target_yaw = 7.0 + hold_progress * 12.0           # Lent panoramique (7 → 19)
+                    self.target_target_y = 35.0                            # Centre de l'arc
+                    self.lerp_speed = 0.5
+                    
+                else:
+                    # Transition vers Acte 1 (18-20s)
+                    trans_progress = (self.phase_time - 18.0) / 2.0
+                    self.target_dist = 230.0 + trans_progress * 30.0       # Léger recul
+                    self.target_pitch = -20.0 + trans_progress * 10.0      # -20 → -10
+                    self.target_yaw = 19.0 - trans_progress * 9.0          # 19 → 10
+                    self.target_target_y = 35.0 - trans_progress * 15.0    # 35 → 20 (descente vers les dunes)
+                    self.lerp_speed = 0.6
+        
+        # ═══════════════════════════════════════════════════════════════
+        # ACTE 1: LE DÉSERT S'ÉVEILLE - Expérience Saharienne (15s)
+        # ═══════════════════════════════════════════════════════════════
+        # NOUVELLE CHORÉGRAPHIE:
+        # - Partie 1 (0-4s)   : Naissance du sable - Vue satellite → micro
+        # - Partie 2 (4-9s)   : Croissance des dunes - Chevauchement
+        # - Partie 3 (9-13s)  : Vie du désert - Avec caravane + vent
+        # - Partie 4 (13-15s) : Transition - Adieu au désert
+        # ═══════════════════════════════════════════════════════════════
+        elif self.current_phase == "act1_desert":
+            
+            if self.phase_time < 1.5:
+                # PLAN 1a: VUE SATELLITE (0-1.5s)
+                # Démarrage très haut, comme Google Earth
+                progress = self.phase_time / 1.5
+                
+                self.target_dist = 350.0 - progress * 100.0     # 350 → 250 (zoom avant)
+                self.target_pitch = 70.0 - progress * 20.0      # 70 → 50 (vue plongeante)
+                self.target_yaw = 0.0                           # Face au désert
+                self.target_target_y = 30.0                     # Centre de la formation
+                self.lerp_speed = 1.2
+                
+            elif self.phase_time < 4.0:
+                # PLAN 1b: ZOOM VERS LE SABLE (1.5-4s)
+                # Plongée rapide vers le niveau du sable (comme fourmi)
+                progress = (self.phase_time - 1.5) / 2.5
+                
+                self.target_dist = 250.0 - progress * 150.0     # 250 → 100 (rapprochement rapide)
+                self.target_pitch = 50.0 - progress * 60.0      # 50 → -10 (bascule vers horizontal)
+                self.target_yaw = progress * 20.0               # 0 → 20 (légère rotation)
+                self.target_target_y = 30.0 - progress * 10.0   # 30 → 20 (descend vers le sol)
+                self.lerp_speed = 1.5
+                
+            elif self.phase_time < 6.0:
+                # PLAN 2a: MONTÉE SUR DUNE (4-6s)
+                # Caméra "grimpe" une dune (mouvement vertical)
+                progress = (self.phase_time - 4.0) / 2.0
+                
+                self.target_dist = 100.0 - progress * 20.0      # 100 → 80 (très proche)
+                self.target_pitch = -10.0 - progress * 15.0     # -10 → -25 (regarde vers le haut)
+                self.target_yaw = 20.0 + progress * 15.0        # 20 → 35
+                self.target_target_y = 20.0 + progress * 20.0   # 20 → 40 (monte vers les crêtes)
+                self.lerp_speed = 0.8
+                
+            elif self.phase_time < 9.0:
+                # PLAN 2b: TRAVELLING LE LONG DES CRÊTES (6-9s)
+                # Vue rasante, angle bas pour exagérer la hauteur
+                progress = (self.phase_time - 6.0) / 3.0
+                
+                self.target_dist = 80.0 + progress * 40.0       # 80 → 120
+                self.target_pitch = -25.0 + progress * 10.0     # -25 → -15
+                self.target_yaw = 35.0 + progress * 45.0        # 35 → 80 (grand travelling)
+                self.target_target_y = 40.0 - progress * 10.0   # 40 → 30 (suit la crête)
+                self.lerp_speed = 0.6
+                
+                # Tremblement léger (simulation vent)
+                if self.phase_time > 7.0:
+                    shake = 0.3 * (1.0 + 0.5 * (self.phase_time - 7.0))
+                    self.target_pitch += shake * (0.5 - ((self.phase_time * 7) % 1.0))
+                
+            elif self.phase_time < 11.0:
+                # PLAN 3a: AVEC LA CARAVANE (9-11s)
+                # Recul pour garder la caravane cadrée, profondeur de champ
+                progress = (self.phase_time - 9.0) / 2.0
+                
+                self.target_dist = 120.0 + progress * 30.0      # 120 → 150
+                self.target_pitch = -15.0 - progress * 5.0      # -15 → -20
+                self.target_yaw = 80.0 - progress * 50.0        # 80 → 30 (suit la caravane)
+                self.target_target_y = 30.0 + progress * 5.0    # 30 → 35
+                self.lerp_speed = 0.5
+                
+            elif self.phase_time < 13.0:
+                # PLAN 3b: SPECTACLE DU VENT + VAGUE (11-13s)
+                # Caméra fixe sur crête pendant vague de sable
+                progress = (self.phase_time - 11.0) / 2.0
+                
+                self.target_dist = 150.0                        # Distance fixe
+                self.target_pitch = -20.0 + progress * 5.0      # -20 → -15
+                self.target_yaw = 30.0 + progress * 60.0        # 30 → 90 (rotation rapide avec vague)
+                self.target_target_y = 35.0                     # Centre du spectacle
+                self.lerp_speed = 0.8
+                
+                # Tremblement pour simuler le vent fort
+                shake_intensity = 0.8 + progress * 0.5
+                self.target_pitch += shake_intensity * (0.5 - ((self.phase_time * 5) % 1.0))
+                self.target_yaw += shake_intensity * 0.3 * (0.5 - ((self.phase_time * 7) % 1.0))
+                
+            else:
+                # PLAN 4: ADIEU AU DÉSERT (13-15s)
+                # Montée en hélicoptère pour vue d'ensemble
+                progress = (self.phase_time - 13.0) / 2.0
+                progress = min(1.0, progress)
+                
+                self.target_dist = 150.0 + progress * 100.0     # 150 → 250 (grand recul)
+                self.target_pitch = -15.0 + progress * 45.0     # -15 → 30 (passe au-dessus)
+                self.target_yaw = 90.0 - progress * 70.0        # 90 → 20 (recentrage)
+                self.target_target_y = 35.0 - progress * 10.0   # 35 → 25 (préparation fleuve)
+                self.lerp_speed = 0.9
+        
+        # ═══════════════════════════════════════════════════════════════
+        # ACTE 2: LE DÉSERT S'ÉVEILLE - Expérience Saharienne (15s)
+        # ═══════════════════════════════════════════════════════════════
+        elif self.current_phase == "act2_desert_seveille":
+            
+            if self.phase_time < 1.5:
+                # VUE SATELLITE
+                progress = self.phase_time / 1.5
+                self.target_dist = 350.0 - progress * 100.0
+                self.target_pitch = 70.0 - progress * 20.0
+                self.target_yaw = 0.0
+                self.target_target_y = 30.0
+                self.lerp_speed = 1.2
+                
+            elif self.phase_time < 4.0:
+                # PLONGÉE VERS LE SABLE
+                progress = (self.phase_time - 1.5) / 2.5
+                self.target_dist = 250.0 - progress * 150.0
+                self.target_pitch = 50.0 - progress * 60.0
+                self.target_yaw = progress * 20.0
+                self.target_target_y = 30.0 - progress * 10.0
+                self.lerp_speed = 1.5
+                
+            elif self.phase_time < 9.0:
+                # TRAVELLING LE LONG DES DUNES
+                progress = (self.phase_time - 4.0) / 5.0
+                self.target_dist = 100.0 + progress * 50.0
+                self.target_pitch = -10.0 - progress * 15.0
+                self.target_yaw = 20.0 + progress * 60.0
+                self.target_target_y = 25.0 + progress * 15.0
+                self.lerp_speed = 0.6
+                
+            elif self.phase_time < 13.0:
+                # VIE DU DÉSERT + VAGUE
+                progress = (self.phase_time - 9.0) / 4.0
+                self.target_dist = 150.0
+                self.target_pitch = -20.0 + progress * 5.0
+                self.target_yaw = 80.0 - progress * 50.0
+                self.target_target_y = 35.0
+                self.lerp_speed = 0.7
+                
+            else:
+                # TRANSITION
+                progress = (self.phase_time - 13.0) / 2.0
+                self.target_dist = 150.0 + progress * 100.0
+                self.target_pitch = -15.0 + progress * 35.0
+                self.target_yaw = 30.0 - progress * 20.0
+                self.target_target_y = 35.0 - progress * 10.0
+                self.lerp_speed = 0.8
+        
         # --- PHASE 1 CINEMATIC SEQUENCE (Three Lectures) ---
-        if self.current_phase == "phase1_pluie":
+        elif self.current_phase == "phase1_pluie":
             # 1. Plane View (0-15s): Subtle Discovery
             if self.phase_time < 15.0:
                 self.target_pitch = -3.0

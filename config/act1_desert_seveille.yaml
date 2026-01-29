@@ -1,0 +1,382 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# 🏜️ ACTE 1 : LE DÉSERT S'ÉVEILLE - Configuration Complète
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Le désert se crée sous nos yeux, grain de sable par grain de sable,
+# jusqu'à former un Sahara nigérien VIVANT et RESPIRANT.
+#
+# "Le sable raconte l'histoire des vents millénaires..."
+#
+# ═══════════════════════════════════════════════════════════════════════════
+
+act1_desert_seveille:
+  # ─────────────────────────────────────────────────────────────────────────
+  # MÉTADONNÉES
+  # ─────────────────────────────────────────────────────────────────────────
+  metadata:
+    name: "Le Désert S'éveille"
+    subtitle: "Naissance des Dunes du Sahara"
+    duration: 15.0  # secondes
+    drones: 1000
+    description: |
+      L'Acte 1 n'est plus des dunes statiques - c'est la NAISSANCE d'un 
+      paysage vivant. Le désert se crée sous nos yeux, grain de sable 
+      par grain de sable, jusqu'à former un Sahara nigérien respirant.
+      
+      Ce n'est plus une animation de drones, c'est une EXPÉRIENCE SAHARIENNE.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # TIMELINE DES PARTIES
+  # ─────────────────────────────────────────────────────────────────────────
+  timeline:
+    partie_1_naissance_sable:
+      start: 0.0
+      end: 4.0
+      duration: 4.0
+      name: "Naissance du Sable"
+      quote: "Dans le vide cosmique, les premiers grains apparaissent..."
+      description: |
+        Avant les dunes, il y a les grains de sable. Du néant cosmique
+        émerge une poussière dorée qui s'organise progressivement.
+      
+      phases:
+        - time: "0-1s"
+          name: "Nuage de Grains"
+          description: "1000 points apparaissent progressivement dans une sphère de poussière cosmique"
+          drones_visible: "0 → 1000"
+          altitude: "20-80m (sphère)"
+          
+        - time: "1-2s"
+          name: "Sédimentation"
+          description: "Les grains tombent par gravité - les lourds vite, les légers lentement"
+          effect: "Vitesse de chute variable selon 'poids' du grain"
+          altitude: "80m → 15m"
+          
+        - time: "2-3s"
+          name: "Premières Rides"
+          description: "Formation d'une grille, micro-ondulations apparaissent"
+          pattern: "sin(x) + sin(z) avec amplitude croissante"
+          altitude: "12-18m"
+          
+        - time: "3-4s"
+          name: "Micro-Dunes"
+          description: "Les rides grossissent en dunes naissantes"
+          amplitude: "5m → 15m"
+          altitude: "15-30m"
+      
+      audio_sync:
+        sound: "Grains qui tombent (ASMR sable)"
+        description: "Sons cristallins de sable qui s'écoule"
+    
+    partie_2_croissance_dunes:
+      start: 4.0
+      end: 9.0
+      duration: 5.0
+      name: "Croissance des Dunes"
+      quote: "Le vent sculpte la terre, créant les vagues du désert..."
+      description: |
+        5 types de dunes émergent, chacune avec son comportement unique.
+        Le vent commence à façonner le paysage.
+      
+      formations:
+        dunes_barkhanes:
+          name: "Dunes Barkhanes - Les Croissants Migrants"
+          drones: 180
+          behavior: "Migration vers l'Est (0.8 m/s)"
+          description: |
+            Forme de croissant lunaire caractéristique du Sahara.
+            Avancent lentement poussées par le vent dominant.
+          count: 3
+          positions:
+            - center: [-60, -40]
+              height: 25m
+            - center: [50, 30]
+              height: 30m
+            - center: [-20, 60]
+              height: 35m
+          animation: "Sable qui vole sur les crêtes (sin haute fréquence)"
+          emergence_time: "4-5s"
+          
+        dunes_transversales:
+          name: "Dunes Transversales - Les Poumons"
+          drones: 280
+          behavior: "Respiration (gonflent/dégonflent)"
+          description: |
+            5 vagues parallèles qui se gonflent et se dégonflent
+            comme des poumons du désert.
+          count: 5
+          spacing: 25m
+          animation: |
+            amplitude = 22 + sin(t * 0.8 + index) * 6
+            Chaque vague respire à son propre rythme
+          emergence_time: "5-6s"
+          
+        dune_etoilee:
+          name: "Dune Étoilée - Le Centre Rotatif"
+          drones: 140
+          behavior: "Rotation lente (0.25 rad/s)"
+          description: |
+            6 bras rayonnants depuis le centre, tournant sur elle-même.
+            Point focal de l'attention au centre du désert.
+          center: [0, 0]
+          bras: 6
+          rayon_max: 50m
+          hauteur_centre: 45m
+          color: "Orange Niger (centre)"
+          emergence_time: "6-7s"
+          
+        reg_tectonique:
+          name: "Reg - Plateau Tectonique"
+          drones: 180
+          behavior: "Dérive continentale + inselbergs"
+          description: |
+            Surface plate qui dérive lentement, avec 4 collines
+            isolées (inselbergs) qui "poussent" progressivement.
+          surface_drones: 126
+          inselberg_drones: 54
+          derive:
+            x: "sin(t * 0.2) * 8m"
+            z: "cos(t * 0.15) * 6m"
+          inselbergs:
+            count: 4
+            positions: [[60, 70], [-50, 80], [20, 90], [-30, 65]]
+            height: "22m avec pulsation"
+          
+        erg_dansant:
+          name: "Erg - Mer de Sable Dansante"
+          drones: 140
+          behavior: "Triple sinusoïde (mer agitée)"
+          description: |
+            Zone de sable fin avec ondulations complexes,
+            comme une mer agitée en slow-motion.
+          formula: |
+            y = sin(x*0.05 + z*0.03 + t*0.4) * 12
+              + sin(x*0.12 + z*0.08 + t*1.2) * 6
+              + sin(x*0.25 + t*3.0) * 2 + 18
+          emergence_time: "7-8s"
+      
+      caravane_nomade:
+        name: "Caravane de Chameaux"
+        drones: 20
+        apparition: "8.0s"
+        behavior: "Avance à 3 m/s vers l'Est"
+        description: |
+          20 drones forment une ligne de "chameaux" qui traverse
+          le désert. Animation de marche synchronisée.
+        formation: "Ligne avec espacement 3.5m"
+        animation: "sin(t * 4 + i * 0.3) * 0.7 (marche)"
+        color: "Silhouette sombre [0.3, 0.2, 0.1]"
+      
+      audio_sync:
+        - time: "4-6s"
+          sound: "Bourdonnement du vent qui monte"
+        - time: "6-8s"
+          sound: "Clochettes de chameaux (caravane approche)"
+    
+    partie_3_vie_desert:
+      start: 9.0
+      end: 13.0
+      duration: 4.0
+      name: "Vie du Désert"
+      quote: "Le vent se lève, le sable danse..."
+      description: |
+        Le désert est maintenant vivant. Le système de vent affecte
+        toutes les dunes, une vague de sable géante traverse l'écran,
+        et les couleurs virent au coucher de soleil.
+      
+      systeme_vent:
+        description: "Vent cohérent qui affecte TOUTES les dunes"
+        direction:
+          x: "cos(t * 0.1) * 0.8 + 0.2"
+          z: "sin(t * 0.08) * 0.4"
+        vitesse: "0.8 + sin(t * 0.3) * 0.4"
+        turbulence: "0.5 + sin(t * 0.7) * 0.3"
+        rafales:
+          count: 4
+          positions: [[-40, -30], [50, 20], [-20, 50], [30, -40]]
+          rayon_effet: 25m
+          force: "1.5 + sin(t * 2) * 0.8"
+        effet: |
+          Les drones hauts bougent plus (facteur_hauteur)
+          Turbulence ajoute chaos réaliste
+          Rafales créent effets locaux spectaculaires
+      
+      vague_sable:
+        name: "Vague de Sable Géante"
+        timing: "10.0s - 11.5s"
+        description: |
+          Une méga-vague traverse le désert d'Est en Ouest,
+          soulevant tout sur son passage.
+        vitesse: "133 m/s (traverse 200m en 1.5s)"
+        amplitude: 15m
+        largeur: 70m
+        effet_crete: "Explosion de sable (sin haute fréquence)"
+      
+      coucher_soleil:
+        name: "Couleurs Coucher de Soleil"
+        timing: "9-13s (progression)"
+        description: |
+          Les couleurs changent progressivement du sable
+          naturel vers les oranges/rouges du couchant.
+        transitions:
+          - altitude_basse: "Sable humide → Violet ombre"
+          - altitude_moyenne: "Sable sec → maintenu"
+          - altitude_haute: "Crête soleil → Or couchant"
+        miroitement: "Reflets cristallins sur les crêtes"
+      
+      audio_sync:
+        - time: "9-10s"
+          sound: "Pas de chameaux synchronisés"
+        - time: "10-12s"
+          sound: "Rugissement du vent pendant la vague"
+        - time: "12-13s"
+          sound: "Musique touareg (imzad) qui entre"
+    
+    partie_4_transition:
+      start: 13.0
+      end: 15.0
+      duration: 2.0
+      name: "Transition Magique"
+      quote: "Le désert s'endort, le fleuve s'éveille..."
+      description: |
+        Les dunes s'aplatissent progressivement, une forme de
+        fleuve apparaît dans le sable, préparant l'Acte 2.
+      
+      animation:
+        - time: "13-14s"
+          event: "Dunes s'aplatissent (×0.7 amplitude)"
+        - time: "14-15s"
+          event: "Forme sinueuse de fleuve apparaît"
+          mask: "abs(z - 20*sin(x*0.02)) < zone"
+        - time: "14.5-15s"
+          event: "Couleurs fleuve virent au bleu"
+      
+      audio_sync:
+        sound: "Premier son d'eau (transition)"
+        description: "Gouttes d'eau qui annoncent le fleuve Niger"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PALETTE DE COULEURS COMPLÈTE
+  # ─────────────────────────────────────────────────────────────────────────
+  colors:
+    sable_humide:
+      rgb: [0.75, 0.45, 0.15]
+      usage: "Bas des dunes, sol"
+      
+    sable_moyen:
+      rgb: [0.85, 0.55, 0.25]
+      usage: "Flancs des dunes"
+      
+    sable_sec:
+      rgb: [0.95, 0.65, 0.35]
+      usage: "Hauts des dunes"
+      
+    crete_soleil:
+      rgb: [1.0, 0.75, 0.45]
+      usage: "Crêtes ensoleillées"
+      
+    orange_niger:
+      rgb: [1.0, 0.5, 0.0]
+      usage: "Centre dune étoilée, identité nationale"
+      
+    or_couchant:
+      rgb: [1.0, 0.4, 0.1]
+      usage: "Coucher de soleil"
+      
+    violet_ombre:
+      rgb: [0.5, 0.25, 0.4]
+      usage: "Ombres profondes au crépuscule"
+      
+    silhouette_caravane:
+      rgb: [0.3, 0.2, 0.1]
+      usage: "Caravane de chameaux"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CINÉMATOGRAPHIE
+  # ─────────────────────────────────────────────────────────────────────────
+  camera:
+    plan_1a_satellite:
+      timing: "0-1.5s"
+      name: "Vue Satellite (Google Earth)"
+      start:
+        distance: 350m
+        pitch: 70° (vue plongeante)
+        yaw: 0°
+      end:
+        distance: 250m
+        pitch: 50°
+      effect: "Zoom avant depuis l'espace"
+      
+    plan_1b_plongee:
+      timing: "1.5-4s"
+      name: "Plongée vers le Sable"
+      description: "Comme si on tombait vers le sol"
+      start:
+        distance: 250m
+        pitch: 50°
+      end:
+        distance: 100m
+        pitch: -10° (horizontal)
+      effect: "Sensation de chute, immersion"
+      
+    plan_2a_montee:
+      timing: "4-6s"
+      name: "Montée sur Dune"
+      description: "Caméra grimpe une dune (mouvement vertical)"
+      start:
+        distance: 100m
+        target_y: 20m
+      end:
+        distance: 80m
+        target_y: 40m
+      effect: "Exagère la hauteur des dunes"
+      
+    plan_2b_travelling:
+      timing: "6-9s"
+      name: "Travelling le Long des Crêtes"
+      description: "Vue rasante, angle bas"
+      yaw_change: "35° → 80° (grand travelling)"
+      effect: "Tremblement léger pour simuler le vent"
+      
+    plan_3a_caravane:
+      timing: "9-11s"
+      name: "Avec la Caravane"
+      description: "Recul pour garder les chameaux cadrés"
+      effect: "Profondeur de champ (caravane nette, dunes floues)"
+      
+    plan_3b_vent:
+      timing: "11-13s"
+      name: "Spectacle du Vent"
+      description: "Caméra fixe pendant vague de sable"
+      effect: |
+        Rotation rapide (30° → 90°)
+        Tremblement intense pour simuler le vent fort
+      
+    plan_4_adieu:
+      timing: "13-15s"
+      name: "Adieu au Désert"
+      description: "Montée en hélicoptère pour vue d'ensemble"
+      start:
+        distance: 150m
+        pitch: -15°
+      end:
+        distance: 250m
+        pitch: 30° (passe au-dessus)
+      effect: "Dernière image panoramique avant Acte 2"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # RÉSUMÉ IMPACT
+  # ─────────────────────────────────────────────────────────────────────────
+  impact:
+    realisme: "×10 - Plus un vrai désert"
+    vie: "×8 - Tout bouge organiquement"
+    histoire: "×5 - Caravane, migration, vent"
+    immersion: "×10 - Tous les sens sollicités"
+    
+    spectateur_verra:
+      - "Un désert qui NAÎT sous ses yeux"
+      - "Des dunes qui BOUGENT comme vivantes"
+      - "Une caravane qui TRAVERSE le paysage"
+      - "Le vent qui SCULPTE le sable en temps réel"
+      - "Les couleurs qui CHANGENT avec l'heure virtuelle"
+      - "Une transition MAGIQUE vers le fleuve"
