@@ -1,8 +1,8 @@
 # 📋 CAHIER DES CHARGES COMPLET
 ## Simulateur de Spectacle de Drones 3D - ANEM 2025
 
-**Version :** 1.0  
-**Date :** 29 Janvier 2026  
+**Version :** 1.1  
+**Date :** 1er Mai 2026  
 **Projet :** DRONES-3D-ANEM-2025  
 **Client :** Cérémonie d'Ouverture ANEM 2025 (Association Nigérienne des Étudiants au Maroc)
 
@@ -22,6 +22,7 @@
 10. [Dépendances et Installation](#10-dépendances-et-installation)
 11. [Livrables](#11-livrables)
 12. [Évolutions Futures](#12-évolutions-futures)
+13. [Extension Avancée - Drone Show Cinématographique](#13-extension-avancée---drone-show-cinématographique)
 
 ---
 
@@ -925,6 +926,298 @@ python src/main.py
 3. **Scènes interactives**
    - Réaction au public (via audio ambiant)
    - Mode "DJ" pour improvisation
+
+---
+
+## 13. EXTENSION AVANCÉE - DRONE SHOW CINÉMATOGRAPHIQUE
+
+### 13.1 Vision Globale
+
+L'évolution demandée transforme le simulateur en une illusion totale de spectacle réel. Les drones ne sont plus seulement des points lumineux : ils deviennent des sources vivantes, lisibles à l'œil humain, intégrées à une mise en scène émotionnelle et cinématographique.
+
+Principes directeurs :
+- Les drones deviennent des sources lumineuses vivantes.
+- Le ciel devient une scène cinématographique.
+- Chaque séquence raconte une émotion, pas seulement une forme.
+- La logique dominante devient la révélation progressive plutôt que l'affichage brut.
+
+### 13.2 Système de Rendu Réaliste
+
+#### 13.2.1 Profondeur Atmosphérique
+
+```yaml
+atmosphere:
+   fog_enabled: true
+   fog_density: 0.002
+   fog_color: [0.0, 0.0, 0.05]
+   distance_fade_start: 100
+   distance_fade_end: 400
+```
+
+Effets attendus :
+- Les drones lointains deviennent légèrement flous.
+- La scène gagne une vraie profondeur visuelle.
+- La sensation de volume dans l'air devient crédible.
+
+#### 13.2.2 Variation de Taille Selon la Distance
+
+```python
+size = base_size / (1 + distance * 0.002)
+```
+
+Effets attendus :
+- Les drones proches paraissent plus gros.
+- Les drones éloignés paraissent plus petits.
+- La perception de distance devient naturelle.
+
+#### 13.2.3 Flicker Naturel
+
+```python
+intensity = base_intensity * (1 + sin(time + drone_id) * 0.05)
+```
+
+Effets attendus :
+- La lumière ne paraît jamais parfaitement robotique.
+- Un léger comportement organique est perceptible.
+- Le rendu gagne en crédibilité visuelle.
+
+### 13.3 Système d'Éclairage Cinématographique
+
+#### 13.3.1 Glow Volumétrique
+
+```yaml
+glow:
+   enabled: true
+   radius: 8
+   intensity: 2.5
+   falloff: exponential
+```
+
+Effets attendus :
+- Halo lumineux réaliste autour de chaque drone.
+- Lecture immédiate des sources les plus fortes.
+
+#### 13.3.2 Light Diffusion / Air Scattering
+
+```yaml
+scattering:
+   enabled: true
+   intensity: 0.3
+```
+
+Effets attendus :
+- La lumière semble se diffuser dans l'air.
+- L'image évoque un vrai show nocturne.
+
+#### 13.3.3 Overexposure / Flash Caméra
+
+```yaml
+camera_exposure:
+   bloom_overdrive: true
+   peak_intensity: 3.0
+```
+
+Effets attendus :
+- Les explosions produisent un flash spectaculaire.
+- Le rendu évoque une captation cinéma ou événementielle.
+
+### 13.4 Système On / Off Ultra Réaliste
+
+Un drone n'apparaît pas brutalement : il se révèle.
+
+#### 13.4.1 États Avancés
+
+| État | Description |
+|------|-------------|
+| **OFF** | Invisible total |
+| **PRE-GLOW** | Halo faible |
+| **FADE-IN** | Apparition progressive |
+| **FULL ON** | Luminosité maximale |
+| **PULSE** | Variation rythmique |
+| **FLASH** | Apparition instantanée |
+| **FADE-OUT** | Disparition progressive |
+
+#### 13.4.2 Paramètres de Transition
+
+```yaml
+light_states:
+   fade_in_duration: 0.8
+   fade_out_duration: 0.5
+   flash_duration: 0.1
+   blackout_threshold: 0.0
+```
+
+Exemple de comportement cinéma :
+- OFF → FLASH → OVERBRIGHT → NORMAL → FADE.
+
+### 13.5 Effets Visuels Avancés
+
+#### 13.5.1 Traînées Lumineuses
+
+```yaml
+trails:
+   enabled: true
+   length: 20
+   fade: exponential
+```
+
+Effet attendu :
+- Le mouvement devient visible et spectaculaire.
+- Les trajectoires créent une mémoire visuelle de la scène.
+
+#### 13.5.2 Explosion Cinématique
+
+```yaml
+explosion:
+   speed: 80
+   randomness: 0.3
+   glow_peak: 3.5
+```
+
+Effet attendu :
+- Explosion de type "big bang" visuel.
+- Impression de libération massive d'énergie.
+
+#### 13.5.3 Particules de Support
+
+Particules recommandées :
+- poussière du désert
+- étincelles
+- étoiles fines
+
+#### 13.5.4 Dispersion Intelligente
+
+```python
+direction = normalize(random_vector + outward_vector)
+```
+
+Effet attendu :
+- Les explosions ne sont pas uniformes.
+- Le rendu reste naturel et vivant.
+
+### 13.6 Synchronisation Audio Cinématographique
+
+Le visuel doit respirer avec la musique.
+
+#### 13.6.1 Mapping Audio → Visuel
+
+| Audio | Effet visuel |
+|-------|--------------|
+| **Bass** | Explosion / amplitude |
+| **Mid** | Ondulation |
+| **High** | Scintillement |
+
+#### 13.6.2 Structure Narratives Recommandée
+
+Séquence type :
+- Silence total
+- Apparition lente
+- Montée de tension
+- Pause
+- Explosion
+- Contemplation
+
+#### 13.6.3 Timeline Exemple
+
+```yaml
+timeline:
+   0s: blackout
+   2s: first light
+   8s: tension peak
+   10s: silence
+   10.5s: explosion
+```
+
+### 13.7 Mise en Scène Internationale
+
+#### 13.7.1 Règle d'Or
+
+- Montrer : non.
+- Révéler : oui.
+
+#### 13.7.2 Reveal Progressif
+
+Recommandations :
+- Apparition lettre par lettre.
+- Apparition par lignes.
+- Construction visuelle progressive des symboles.
+
+#### 13.7.3 Blackout Stratégique
+
+Entre les scènes, appliquer un noir total de 0.3 à 1 seconde pour renforcer la surprise et l'impact.
+
+#### 13.7.4 Respiration Visuelle
+
+Des pauses obligatoires doivent être conservées pour laisser le public admirer la scène finale avant la transition suivante.
+
+### 13.8 Caméra Cinématographique Avancée
+
+La caméra agit comme un spectateur intelligent.
+
+#### 13.8.1 Types de Mouvements
+
+- Orbit : rotation autour de la scène.
+- Dolly : approche ou recul dramatique.
+- Crane : mouvement vertical.
+- Follow : suivi d'une formation ou d'un axe narratif.
+
+#### 13.8.2 Paramètres Clés
+
+```yaml
+camera:
+   smoothness: 0.08
+   max_speed: 120
+   cinematic_zoom: true
+```
+
+#### 13.8.3 Effets Caméra
+
+```yaml
+motion_blur:
+   enabled: true
+   intensity: 0.6
+
+depth_of_field:
+   focus_distance: dynamic
+   blur_strength: 0.3
+
+camera_shake:
+   enabled: true
+   intensity: 0.2
+```
+
+Effets attendus :
+- Plans plus dynamiques.
+- Sensation d'impact lors des explosions.
+- Immersion plus forte dans le spectacle.
+
+### 13.9 Exemple de Scène Complète : Révélation du Niger
+
+#### 13.9.1 Séquence Recommandée
+
+1. Blackout total pendant 2 secondes.
+2. Pré-lueur faible des points.
+3. Fade-in progressif.
+4. Formation de la carte du Niger.
+5. Pulsation lumineuse.
+6. Flash.
+7. Transition vers le drapeau.
+
+#### 13.9.2 Résultat Recherché
+
+- Émotion.
+- Surprise.
+- Impact visuel fort.
+- Identité nationale immédiatement lisible.
+
+### 13.10 Conséquences de Conception
+
+L'ajout de cette extension impose les priorités suivantes :
+
+1. Le rendu doit privilégier la lisibilité des sources lumineuses.
+2. Les transitions doivent rester organiques et non mécaniques.
+3. Les scènes doivent être construites comme des révélations successives.
+4. La caméra, la lumière et l'audio doivent fonctionner comme un seul système narratif.
 
 ---
 

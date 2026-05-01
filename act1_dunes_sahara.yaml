@@ -1,0 +1,301 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# ACTE 1 : DUNES RESPIRANTES DU SAHARA
+# ═══════════════════════════════════════════════════════════════════════════════
+# Le Sahara vivant qui respire, ondule et raconte l'histoire des peuples nomades
+# ═══════════════════════════════════════════════════════════════════════════════
+
+act_info:
+  name: "Dunes Respirantes du Sahara"
+  duration: 15.0  # secondes
+  description: |
+    Le cœur géographique et spirituel du Niger : le Sahara.
+    Un océan de sable vivant qui respire, ondule et raconte 
+    l'histoire des peuples nomades.
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ARCHITECTURE DES ALTITUDES (Réaliste - Visible depuis le sol)
+# ═══════════════════════════════════════════════════════════════════════════════
+altitudes:
+  sol_minimum: 8.0       # Jamais en dessous
+  reg_plateau: 
+    min: 8.0
+    max: 15.0
+  piemont_microdunes:
+    min: 15.0
+    max: 30.0
+  dunes_principales:
+    min: 30.0
+    max: 50.0
+  cretes_sommets:
+    min: 45.0
+    max: 60.0
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PALETTE DE COULEURS "DÉSERT VIVANT"
+# ═══════════════════════════════════════════════════════════════════════════════
+colors:
+  sable_chaud:
+    rgb: [0.95, 0.65, 0.30]
+    hex: "#F2A64D"
+    meaning: "Le soleil de midi"
+    
+  ocre_profond:
+    rgb: [0.85, 0.50, 0.20]
+    hex: "#D98033"
+    meaning: "Les dunes anciennes"
+    
+  orange_niger:
+    rgb: [1.00, 0.50, 0.00]
+    hex: "#FF8000"
+    meaning: "L'identité nationale"
+    
+  or_du_soir:
+    rgb: [1.00, 0.84, 0.40]
+    hex: "#FFD666"
+    meaning: "Coucher de soleil"
+    
+  violet_ombre:
+    rgb: [0.60, 0.30, 0.50]
+    hex: "#994D80"
+    meaning: "Ombres profondes"
+    
+  bleu_ciel:
+    rgb: [0.70, 0.85, 1.00]
+    hex: "#B3D9FF"
+    meaning: "Ciel sahélien"
+    
+  blanc_eclat:
+    rgb: [1.00, 0.95, 0.85]
+    hex: "#FFF2D9"
+    meaning: "Éclat solaire"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DISTRIBUTION DES 1000 DRONES
+# ═══════════════════════════════════════════════════════════════════════════════
+formations:
+  barkhanes:
+    count: 200
+    percentage: 20%
+    role: "Formes iconiques (croissants de lune)"
+    description: |
+      3 dunes en forme de croissant caractéristiques du Sahara.
+      Sommets entre 25-45m, rayon ~25m.
+    positions:
+      - center: [-50, -30]
+        height: 25
+      - center: [40, 20]
+        height: 30
+      - center: [-20, 50]
+        height: 35
+        
+  transversales:
+    count: 300
+    percentage: 30%
+    role: "Volume et masse (vagues parallèles)"
+    description: |
+      5 vagues parallèles espacées de 30m.
+      Ondulation sinusoïdale, hauteur 30m ± 15m.
+    waves: 5
+    spacing: 30
+    width: 120
+    
+  etoilee:
+    count: 150
+    percentage: 15%
+    role: "Centre d'intérêt (multi-bras)"
+    description: |
+      Dune étoilée au centre avec 6 bras rayonnants.
+      Sommet à 50m, décroissance exponentielle.
+    center: [0, 0]
+    arms: 6
+    peak_height: 50
+    
+  reg_plateau:
+    count: 200
+    percentage: 20%
+    role: "Surface et fond (plateau rocheux)"
+    description: |
+      Surface plate (10m) avec 4 inselbergs (collines isolées).
+      Positionnés à l'arrière-plan (z: 60-100).
+    surface_height: 10
+    inselbergs:
+      count: 4
+      max_height: 25
+      
+  erg_mouvant:
+    count: 150
+    percentage: 15%
+    role: "Animation et vie (mer de sable)"
+    description: |
+      Ondulations organiques sur le côté gauche.
+      Double sinusoïde pour effet de mer agitée.
+    position: "left_side"
+    base_height: 20
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CHORÉGRAPHIE (15 secondes)
+# ═══════════════════════════════════════════════════════════════════════════════
+choreography:
+  sequence_1_apparition:
+    time: "0-3s"
+    name: "Apparition Progressive"
+    description: "Le désert émerge des ténèbres..."
+    events:
+      - time: "0-1s"
+        action: "Premières dunes barkhanes apparaissent"
+      - time: "1-2s"
+        action: "Dunes transversales se dessinent"
+      - time: "2-3s"
+        action: "Erg ondulant et reg se complètent"
+    effect: "Carte topographique qui s'illumine"
+    
+  sequence_2_respiration:
+    time: "3-8s"
+    name: "Respiration des Dunes"
+    description: "Le Sahara s'éveille et respire..."
+    events:
+      - time: "3-5s"
+        action: "Onde lente traverse le désert d'Est en Ouest"
+      - time: "5-6s"
+        action: "Micro-ondes (vent) sur les crêtes"
+      - time: "6-8s"
+        action: "Effet de dérive du sable"
+    effect: "Le désert semble VIVANT"
+    
+  sequence_3_coucher_soleil:
+    time: "8-12s"
+    name: "Coucher de Soleil"
+    description: "Les couleurs du Sahara explosent..."
+    events:
+      - time: "8-10s"
+        action: "Transition vers palette chaude (oranges/rouges)"
+      - time: "10-11s"
+        action: "Crêtes des dunes brillent intensément"
+      - time: "11-12s"
+        action: "Effet miroitement maximum"
+    effect: "Magie du coucher de soleil sahélien"
+    
+  sequence_4_transition:
+    time: "12-15s"
+    name: "Transition vers Acte 2"
+    description: "Le désert se transforme en fleuve..."
+    events:
+      - time: "12-13s"
+        action: "Dunes s'aplatissent progressivement"
+      - time: "13-14s"
+        action: "Forme de fleuve apparaît dans le sable"
+      - time: "14-15s"
+        action: "Transition fluide vers le Fleuve Niger"
+    effect: "Transformation organique désert → fleuve"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ANIMATION "RESPIRATION"
+# ═══════════════════════════════════════════════════════════════════════════════
+animation:
+  onde_principale:
+    description: "Lente, comme la respiration"
+    frequency: 0.05  # rad/m
+    speed: 0.8       # rad/s
+    amplitude: 3.0   # mètres
+    
+  micro_ondes:
+    description: "Rapide, comme le vent"
+    frequency_x: 0.2
+    frequency_z: 0.15
+    speed: 3.0
+    amplitude: 1.2
+    
+  derive_sable:
+    description: "Sand drift sur les crêtes"
+    direction: [1.0, 0.0, 0.3]  # Est vers Ouest
+    amplitude_x: 0.5
+    amplitude_z: 0.3
+    height_threshold: 15  # Commence à 15m
+    
+  vibration:
+    description: "Grains de sable individuels"
+    amplitude: 0.3  # mètres
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SÉQUENCE CAMÉRA "VOYAGE SAHARIEN"
+# ═══════════════════════════════════════════════════════════════════════════════
+camera:
+  plan_1_survol_meditatif:
+    time: "0-5s"
+    position: "Angle 3/4 sud-ouest"
+    target: [0, 30, 0]
+    movement: "Travelling lent vers la droite"
+    description: |
+      Vue méditative depuis le coin.
+      Distance: 180→160m, Pitch: -25°→-20°, Yaw: -30°→10°
+      
+  plan_2_ras_du_sol:
+    time: "5-10s"
+    position: "Niveau du sable"
+    target: [0, 25, 0]
+    movement: "Avance entre les dunes"
+    description: |
+      Immersion au niveau du sable.
+      Distance: 100→130m, Pitch: -15°→-25°, Yaw: 10°→30°
+      
+  plan_3_vue_aerienne:
+    time: "10-15s"
+    position: "Au-dessus des dunes"
+    target: [0, 25, 0]
+    movement: "Montée + zoom arrière"
+    description: |
+      Montée pour vue d'ensemble.
+      Distance: 130→230m, Pitch: -25°→10°, Yaw: 30°→10°
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EFFETS SPÉCIAUX
+# ═══════════════════════════════════════════════════════════════════════════════
+effects:
+  miroitement:
+    description: "Scintillement du sable au soleil"
+    base_frequency: 5.0
+    altitude_factor: 3.0  # Plus haut = plus rapide
+    amplitude_base: 0.08
+    amplitude_altitude: 0.15
+    
+  coucher_soleil:
+    time_start: 8.0
+    time_end: 12.0
+    crete_intensification: 1.4  # 40% plus lumineux
+    ombre_violet_blend: 0.3
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# POINTS CLÉS POUR LE RÉALISME
+# ═══════════════════════════════════════════════════════════════════════════════
+realism_notes:
+  echelle_humaine:
+    - "Altitude max: 60m (pas 100m+)"
+    - "Dunes visibles depuis le sol"
+    - "Détails à hauteur des yeux (10-30m)"
+    
+  mouvement_organique:
+    - "Pas de mouvements mécaniques"
+    - "Ondes sinueuses, pas linéaires"
+    - "Vitesses variables (lent en bas, rapide en haut)"
+    
+  couleurs_naturelles:
+    - "Dégradés, pas de couleurs pures"
+    - "Variations subtiles"
+    - "Influence de l'heure (animation temporelle)"
+    
+  densite_intelligente:
+    - "Plus de drones sur les crêtes (visibilité)"
+    - "Moins sur les pentes douces"
+    - "Groupements naturels, pas distribution uniforme"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CHECKLIST DE SUCCÈS
+# ═══════════════════════════════════════════════════════════════════════════════
+success_criteria:
+  - "Les dunes sont RECONNAISSABLES comme telles"
+  - "L'animation est ORGANIQUE, pas mécanique"
+  - "Les couleurs évoquent VRAIMENT le Sahara"
+  - "La caméra SURVOLE le désert de façon cinématique"
+  - "La transition vers l'Acte 2 est FLUIDE et logique"
+  - "60 FPS maintenus avec 1000 drones"
+  - "L'ÉMOTION du désert est transmise"

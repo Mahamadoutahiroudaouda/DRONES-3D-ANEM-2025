@@ -1,0 +1,6 @@
+performance:
+  use_instanced_rendering: true
+  lod_enabled: true
+  lod_distance_threshold: 100.0
+  max_framerate: 60
+  vsync: true
